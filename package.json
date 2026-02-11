@@ -27,6 +27,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "dev": "pnpm --filter=@pipecat-ai/voice-ui-kit dev",
+    "dev:vue": "pnpm --filter=@pipecat-ai/voice-ui-kit-vue storybook",
     "dev:docs": "pnpm --filter=@pipecat-ai/voice-ui-kit-docs dev"
   }
 }

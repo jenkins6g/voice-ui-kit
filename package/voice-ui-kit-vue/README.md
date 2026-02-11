@@ -15,6 +15,11 @@ Vue port of the core `@pipecat-ai/voice-ui-kit` primitives.
 </template>
 ```
 
+## Stories
+
+- `pnpm --filter @pipecat-ai/voice-ui-kit-vue storybook`
+- `pnpm --filter @pipecat-ai/voice-ui-kit-vue storybook:build`
+
 ## Parity Status
 
 | Area | Status | Notes |
