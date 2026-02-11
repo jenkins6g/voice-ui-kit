@@ -7,6 +7,9 @@ export { default as ControlBarDivider } from "./components/ControlBarDivider.vue
 export { default as UserAudioControl } from "./components/UserAudioControl.vue";
 export { default as VoiceVisualizer } from "./components/VoiceVisualizer.vue";
 export { default as ErrorCard } from "./components/ErrorCard.vue";
+export { default as DeviceSelect } from "./components/DeviceSelect.vue";
+export { default as UserVideoControl } from "./components/UserVideoControl.vue";
+export { default as ClientStatus } from "./components/ClientStatus.vue";
 
 export {
   providePipecatApp,
@@ -24,6 +27,12 @@ export {
 } from "./lib/transports";
 
 export type {
+  ClientStatusClassNames,
+  ClientStatusComponentProps,
+  ClientStatusProps,
+} from "./types/clientStatus";
+
+export type {
   ConnectButtonProps,
   ConnectButtonSize,
   ConnectButtonStateContent,
@@ -37,6 +46,18 @@ export type {
 } from "./types/controlBar";
 
 export type {
+  DeviceSelectClassNames,
+  DeviceSelectProps,
+} from "./types/deviceSelect";
+
+export type {
+  ErrorCardClassNames,
+  ErrorCardProps,
+  ErrorCardShadow,
+  ErrorCardSize,
+} from "./types/errorCard";
+
+export type {
   UserAudioControlButtonProps,
   UserAudioControlClassNames,
   UserAudioControlProps,
@@ -46,11 +67,11 @@ export type {
 } from "./types/userAudioControl";
 
 export type {
-  ErrorCardClassNames,
-  ErrorCardProps,
-  ErrorCardShadow,
-  ErrorCardSize,
-} from "./types/errorCard";
+  UserVideoControlProps,
+  UserVideoControlSize,
+  UserVideoControlState,
+  UserVideoControlVariant,
+} from "./types/userVideoControl";
 
 export type {
   VoiceVisualizerBarLineCap,

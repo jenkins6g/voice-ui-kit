@@ -130,10 +130,12 @@ const startAndConnect = async (pcClient: PipecatClient) => {
       );
       transformedStartBotResponse.value = transformed;
       await pcClient.connect(transformed);
+      emit("connect");
       return;
     }
 
     await pcClient.connect(props.connectParams ?? {});
+    emit("connect");
   } catch (err) {
     const message =
       err instanceof Error
@@ -160,10 +162,6 @@ const handleConnect = async () => {
 
   error.value = null;
   await startAndConnect(client.value);
-
-  if (!error.value) {
-    emit("connect");
-  }
 };
 
 const handleDisconnect = async () => {
