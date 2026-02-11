@@ -5,6 +5,7 @@
   "type": "module",
   "workspaces": [
     "package",
+    "package/*",
     "docs",
     "examples/*"
   ],
@@ -24,7 +25,7 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "build": "pnpm --filter=@pipecat-ai/voice-ui-kit build",
+    "build": "pnpm -r build",
     "dev": "pnpm --filter=@pipecat-ai/voice-ui-kit dev",
     "dev:docs": "pnpm --filter=@pipecat-ai/voice-ui-kit-docs dev"
   }
