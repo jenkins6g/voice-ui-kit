@@ -274,4 +274,69 @@ describe("ConsoleTemplate", () => {
 
     expect(sendText).not.toHaveBeenCalled();
   });
+
+  it("supports noInject while still sending text", async () => {
+    const { wrapper, sendText } = mountTemplate({
+      conversationElementProps: {
+        noInject: true,
+      },
+    });
+    const input = wrapper.find('[data-testid="conversation-input"]');
+
+    await input.setValue("Injected?");
+    await input.trigger("keydown.enter");
+    await nextTick();
+
+    expect(sendText).toHaveBeenCalledTimes(1);
+    expect(wrapper.text()).not.toContain("Injected?");
+  });
+
+  it("caps conversation messages when maxMessages is set", async () => {
+    const { wrapper, handlers } = mountTemplate({
+      conversationElementProps: {
+        maxMessages: 2,
+      },
+    });
+
+    handlers.get(RTVIEvent.UserTranscript)?.({ text: "one" });
+    handlers.get(RTVIEvent.UserTranscript)?.({ text: "two" });
+    handlers.get(RTVIEvent.UserTranscript)?.({ text: "three" });
+    await nextTick();
+
+    const conversationText = wrapper
+      .findAll(".vuk-console-conversation-item")
+      .map((item) => item.text())
+      .join(" ");
+    expect(conversationText).not.toContain("one");
+    expect(conversationText).toContain("two");
+    expect(conversationText).toContain("three");
+  });
+
+  it("formats messages via conversationElementProps.messageFormatter", async () => {
+    const { wrapper, handlers } = mountTemplate({
+      conversationElementProps: {
+        messageFormatter: ({ text }: { text: string }) => `fmt:${text}`,
+      },
+    });
+
+    handlers.get(RTVIEvent.UserTranscript)?.({ text: "format me" });
+    await nextTick();
+
+    expect(wrapper.text()).toContain("fmt:format me");
+  });
+
+  it("shows token totals from metrics payload", async () => {
+    const { wrapper, handlers } = mountTemplate();
+    await wrapper.find('[data-testid="conversation-tab-metrics"]').trigger("click");
+    handlers.get(RTVIEvent.Metrics)?.({
+      ttfb: [{ processor: "llm", value: 0.2 }],
+      tokens: [{ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 }],
+    });
+    await nextTick();
+
+    const summary = wrapper.find('[data-testid="metrics-summary"]');
+    expect(summary.text()).toContain("10");
+    expect(summary.text()).toContain("5");
+    expect(summary.text()).toContain("15");
+  });
 });

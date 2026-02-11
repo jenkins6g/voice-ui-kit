@@ -41,9 +41,17 @@ export type ConsoleTemplateProps = Omit<PipecatBaseProps, "children"> & {
   logoComponent?: string;
   conversationElementProps?: {
     noTextInput?: boolean;
+    noInject?: boolean;
     assistantLabel?: string;
     clientLabel?: string;
     systemLabel?: string;
+    maxMessages?: number;
+    showTimestamps?: boolean;
+    messageFormatter?: (params: {
+      role: "user" | "assistant" | "system";
+      text: string;
+      createdAt: string;
+    }) => string;
     sendTextOptions?: SendTextOptions;
   };
   onInjectMessage?: (injectMessage: (message: ConsoleMessage) => void) => void;

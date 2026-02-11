@@ -131,7 +131,13 @@
                         class="vuk-console-conversation-item"
                       >
                         <strong>{{ roleLabel(message.role) }}</strong>
-                        <span>{{ messageText(message) }}</span>
+                        <span>{{ renderedMessageText(message) }}</span>
+                        <span
+                          v-if="props.conversationElementProps?.showTimestamps"
+                          class="vuk-console-msg-time"
+                        >
+                          {{ shortTime(message.createdAt) }}
+                        </span>
                       </li>
                       <li v-if="!conversationMessages.length" class="vuk-console-muted">
                         No messages yet.
@@ -164,13 +170,38 @@
                     class="vuk-console-panel-content"
                     data-testid="metrics-panel"
                   >
-                    <ul class="vuk-console-event-list">
+                    <div class="vuk-console-metrics-summary" data-testid="metrics-summary">
+                      <div class="vuk-console-metric-chip">
+                        <span>Prompt</span>
+                        <strong>{{ tokenMetrics.prompt_tokens }}</strong>
+                      </div>
+                      <div class="vuk-console-metric-chip">
+                        <span>Completion</span>
+                        <strong>{{ tokenMetrics.completion_tokens }}</strong>
+                      </div>
+                      <div class="vuk-console-metric-chip">
+                        <span>Total</span>
+                        <strong>{{ tokenMetrics.total_tokens }}</strong>
+                      </div>
+                    </div>
+                    <p
+                      v-if="!metricsEntries.length && !canSendForState(transportState)"
+                      class="vuk-console-muted"
+                    >
+                      Connect to an agent to view metrics in real-time.
+                    </p>
+                    <p
+                      v-else-if="!metricsEntries.length"
+                      class="vuk-console-muted"
+                    >
+                      Waiting for metrics data...
+                    </p>
+                    <ul class="vuk-console-event-list" data-testid="metrics-list">
                       <li v-for="metric in metricsEntries" :key="metric.id" class="vuk-console-event-item">
                         <span class="vuk-console-event-time">{{ metric.time }}</span>
                         <span class="vuk-console-event-name">metrics</span>
                         <span class="vuk-console-event-message">{{ metric.message }}</span>
                       </li>
-                      <li v-if="!metricsEntries.length" class="vuk-console-muted">No metrics events yet.</li>
                     </ul>
                   </div>
                 </section>
@@ -336,7 +367,13 @@
                     class="vuk-console-conversation-item"
                   >
                     <strong>{{ roleLabel(message.role) }}</strong>
-                    <span>{{ messageText(message) }}</span>
+                    <span>{{ renderedMessageText(message) }}</span>
+                    <span
+                      v-if="props.conversationElementProps?.showTimestamps"
+                      class="vuk-console-msg-time"
+                    >
+                      {{ shortTime(message.createdAt) }}
+                    </span>
                   </li>
                   <li v-if="!conversationMessages.length" class="vuk-console-muted">
                     No messages yet.
@@ -537,8 +574,14 @@ const conversationMessages = ref<ConversationMessage[]>([]);
 const pendingMessage = ref("");
 const isSendingText = ref(false);
 const metricsEntries = ref<MetricsEntry[]>([]);
+const tokenMetrics = ref({
+  prompt_tokens: 0,
+  completion_tokens: 0,
+  total_tokens: 0,
+});
 const events = ref<EventEntry[]>([]);
 const eventFilter = ref("");
+const shouldAutoScrollEvents = ref(true);
 
 const desktopRootRef = ref<HTMLElement | null>(null);
 const eventsScrollRef = ref<HTMLElement | null>(null);
@@ -725,13 +768,44 @@ const messageText = (message: ConversationMessage) => {
   return message.parts.map((part) => part.text).join("");
 };
 
+const shortTime = (isoDate: string) => {
+  const parsed = new Date(isoDate);
+  if (Number.isNaN(parsed.getTime())) {
+    return isoDate;
+  }
+  return parsed.toLocaleTimeString();
+};
+
+const renderedMessageText = (message: ConversationMessage) => {
+  const text = messageText(message);
+  if (!props.conversationElementProps?.messageFormatter) {
+    return text;
+  }
+
+  return props.conversationElementProps.messageFormatter({
+    role: message.role,
+    text,
+    createdAt: message.createdAt,
+  });
+};
+
 const pushEvent = (event: string, message: string) => {
+  const scrollEl = eventsScrollRef.value;
+  if (scrollEl) {
+    const distanceFromBottom = scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight;
+    shouldAutoScrollEvents.value = distanceFromBottom <= 4;
+  }
+
   events.value.push({
     id: makeId(),
     event,
     message,
     time: formatNow(),
   });
+
+  if (events.value.length > 300) {
+    events.value.splice(0, events.value.length - 300);
+  }
 };
 
 const pushMetric = (message: string) => {
@@ -786,6 +860,11 @@ const injectMessage = (message: {
   if (lastMessage && lastMessage.role === message.role && !lastMessage.final) {
     lastMessage.parts.push(...normalizedParts);
     lastMessage.final = isFinal;
+    if (props.conversationElementProps?.maxMessages && conversationMessages.value.length > props.conversationElementProps.maxMessages) {
+      conversationMessages.value = conversationMessages.value.slice(
+        conversationMessages.value.length - props.conversationElementProps.maxMessages,
+      );
+    }
     return;
   }
 
@@ -796,6 +875,12 @@ const injectMessage = (message: {
     final: isFinal,
     createdAt,
   });
+
+  if (props.conversationElementProps?.maxMessages && conversationMessages.value.length > props.conversationElementProps.maxMessages) {
+    conversationMessages.value = conversationMessages.value.slice(
+      conversationMessages.value.length - props.conversationElementProps.maxMessages,
+    );
+  }
 };
 
 const sendMessage = async (client: PipecatClient, text: string) => {
@@ -830,16 +915,18 @@ const handleSendText = async (client: PipecatClient, transportState?: TransportS
   isSendingText.value = true;
 
   try {
-    injectMessage({
-      role: "user",
-      parts: [
-        {
-          text,
-          final: true,
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    });
+    if (!props.conversationElementProps?.noInject) {
+      injectMessage({
+        role: "user",
+        parts: [
+          {
+            text,
+            final: true,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      });
+    }
 
     await sendMessage(client, text);
     pendingMessage.value = "";
@@ -1021,6 +1108,10 @@ watch(filteredEvents, () => {
       return;
     }
 
+    if (!shouldAutoScrollEvents.value) {
+      return;
+    }
+
     el.scrollTop = el.scrollHeight;
   });
 });
@@ -1082,6 +1173,14 @@ const bindClientEvents = (client: PipecatClient | null) => {
 
   const onMetrics = (data: PipecatMetricsData) => {
     pushMetric(summarizeMetrics(data));
+    const tokens = (data as { tokens?: Array<{ prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }> }).tokens;
+    if (Array.isArray(tokens) && tokens[0]) {
+      tokenMetrics.value = {
+        prompt_tokens: tokenMetrics.value.prompt_tokens + (tokens[0].prompt_tokens || 0),
+        completion_tokens: tokenMetrics.value.completion_tokens + (tokens[0].completion_tokens || 0),
+        total_tokens: tokenMetrics.value.total_tokens + (tokens[0].total_tokens || 0),
+      };
+    }
   };
 
   const onBotOutput = (data: BotOutputData) => {
@@ -1112,30 +1211,102 @@ const bindClientEvents = (client: PipecatClient | null) => {
   };
 
   const onConnected = () => pushEvent(RTVIEvent.Connected, "Client connected");
-  const onDisconnected = () => pushEvent(RTVIEvent.Disconnected, "Client disconnected");
+  const onDisconnected = () => {
+    pushEvent(RTVIEvent.Disconnected, "Client disconnected");
+    tokenMetrics.value = {
+      prompt_tokens: 0,
+      completion_tokens: 0,
+      total_tokens: 0,
+    };
+  };
   const onError = (data: unknown) => pushEvent(RTVIEvent.Error, `Error: ${JSON.stringify(data)}`);
+  const onTransportStateChanged = (state: TransportState) =>
+    pushEvent("transportState", `Transport state changed: ${state}`);
+  const onBotConnected = (participant: { id?: string }) =>
+    pushEvent(RTVIEvent.BotConnected, `Bot connected: ${participant.id || "unknown"}`);
+  const onBotDisconnected = (participant: { id?: string }) =>
+    pushEvent(RTVIEvent.BotDisconnected, `Bot disconnected: ${participant.id || "unknown"}`);
+  const onBotReady = (data: { version?: string; about?: unknown }) =>
+    pushEvent(RTVIEvent.BotReady, `Bot ready (v${data.version || "unknown"}): ${JSON.stringify(data.about || {})}`);
+  const onParticipantLeft = (participant: { id?: string }) =>
+    pushEvent(RTVIEvent.ParticipantLeft, `Participant left: ${participant.id || "unknown"}`);
+  const onUserStartedSpeaking = () => pushEvent(RTVIEvent.UserStartedSpeaking, "User started speaking");
+  const onUserStoppedSpeaking = () => pushEvent(RTVIEvent.UserStoppedSpeaking, "User stopped speaking");
+  const onBotStartedSpeaking = () => pushEvent(RTVIEvent.BotStartedSpeaking, "Bot started speaking");
+  const onScreenTrackStarted = (track: MediaStreamTrack, participant?: { id?: string }) =>
+    pushEvent(
+      RTVIEvent.ScreenTrackStarted,
+      `Screen track started: ${track.kind || "unknown"} for ${participant?.id || "unknown"}`,
+    );
+  const onScreenTrackStopped = (track: MediaStreamTrack, participant?: { id?: string }) =>
+    pushEvent(
+      RTVIEvent.ScreenTrackStopped,
+      `Screen track stopped: ${track.kind || "unknown"} for ${participant?.id || "unknown"}`,
+    );
+  const onUserTranscript = (data: { text?: string }) => {
+    if (data?.text) {
+      injectMessage({
+        role: "user",
+        parts: [{ text: data.text, final: true, createdAt: new Date().toISOString() }],
+      });
+    }
+    pushEvent(RTVIEvent.UserTranscript, `User transcript: ${data?.text || ""}`);
+  };
+  const onBotTranscript = (data: { text?: string }) => {
+    if (data?.text) {
+      injectMessage({
+        role: "assistant",
+        parts: [{ text: data.text, final: true, createdAt: new Date().toISOString() }],
+      });
+    }
+    pushEvent(RTVIEvent.BotTranscript, `Bot transcript: ${data?.text || ""}`);
+  };
 
   client.on(RTVIEvent.ParticipantConnected, onParticipantConnected as never);
+  client.on(RTVIEvent.ParticipantLeft, onParticipantLeft as never);
+  client.on(RTVIEvent.BotConnected, onBotConnected as never);
+  client.on(RTVIEvent.BotDisconnected, onBotDisconnected as never);
+  client.on(RTVIEvent.BotReady, onBotReady as never);
   client.on(RTVIEvent.TrackStarted, onTrackStarted as never);
   client.on(RTVIEvent.TrackStopped, onTrackStopped as never);
+  client.on(RTVIEvent.ScreenTrackStarted, onScreenTrackStarted as never);
+  client.on(RTVIEvent.ScreenTrackStopped, onScreenTrackStopped as never);
   client.on(RTVIEvent.BotStarted, onBotStarted as never);
   client.on(RTVIEvent.ServerMessage, onServerMessage as never);
   client.on(RTVIEvent.Metrics, onMetrics as never);
   client.on(RTVIEvent.BotOutput, onBotOutput as never);
+  client.on(RTVIEvent.UserTranscript, onUserTranscript as never);
+  client.on(RTVIEvent.BotTranscript, onBotTranscript as never);
+  client.on(RTVIEvent.BotStartedSpeaking, onBotStartedSpeaking as never);
+  client.on(RTVIEvent.UserStartedSpeaking, onUserStartedSpeaking as never);
+  client.on(RTVIEvent.UserStoppedSpeaking, onUserStoppedSpeaking as never);
   client.on(RTVIEvent.BotStoppedSpeaking, onBotStoppedSpeaking as never);
+  client.on(RTVIEvent.TransportStateChanged, onTransportStateChanged as never);
   client.on(RTVIEvent.Connected, onConnected as never);
   client.on(RTVIEvent.Disconnected, onDisconnected as never);
   client.on(RTVIEvent.Error, onError as never);
 
   return () => {
     client.off(RTVIEvent.ParticipantConnected, onParticipantConnected as never);
+    client.off(RTVIEvent.ParticipantLeft, onParticipantLeft as never);
+    client.off(RTVIEvent.BotConnected, onBotConnected as never);
+    client.off(RTVIEvent.BotDisconnected, onBotDisconnected as never);
+    client.off(RTVIEvent.BotReady, onBotReady as never);
     client.off(RTVIEvent.TrackStarted, onTrackStarted as never);
     client.off(RTVIEvent.TrackStopped, onTrackStopped as never);
+    client.off(RTVIEvent.ScreenTrackStarted, onScreenTrackStarted as never);
+    client.off(RTVIEvent.ScreenTrackStopped, onScreenTrackStopped as never);
     client.off(RTVIEvent.BotStarted, onBotStarted as never);
     client.off(RTVIEvent.ServerMessage, onServerMessage as never);
     client.off(RTVIEvent.Metrics, onMetrics as never);
     client.off(RTVIEvent.BotOutput, onBotOutput as never);
+    client.off(RTVIEvent.UserTranscript, onUserTranscript as never);
+    client.off(RTVIEvent.BotTranscript, onBotTranscript as never);
+    client.off(RTVIEvent.BotStartedSpeaking, onBotStartedSpeaking as never);
+    client.off(RTVIEvent.UserStartedSpeaking, onUserStartedSpeaking as never);
+    client.off(RTVIEvent.UserStoppedSpeaking, onUserStoppedSpeaking as never);
     client.off(RTVIEvent.BotStoppedSpeaking, onBotStoppedSpeaking as never);
+    client.off(RTVIEvent.TransportStateChanged, onTransportStateChanged as never);
     client.off(RTVIEvent.Connected, onConnected as never);
     client.off(RTVIEvent.Disconnected, onDisconnected as never);
     client.off(RTVIEvent.Error, onError as never);
@@ -1426,6 +1597,12 @@ void userLabelText;
   grid-template-columns: 5rem 1fr;
 }
 
+.vuk-console-msg-time {
+  color: #6b7280;
+  font-size: 0.7rem;
+  grid-column: 2;
+}
+
 .vuk-console-event-item {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.72rem;
@@ -1449,6 +1626,30 @@ void userLabelText;
   display: flex;
   gap: 0.5rem;
   justify-content: space-between;
+}
+
+.vuk-console-metrics-summary {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vuk-console-metric-chip {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.45rem;
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.vuk-console-metric-chip span {
+  color: #6b7280;
+  font-size: 0.68rem;
+}
+
+.vuk-console-metric-chip strong {
+  font-size: 0.9rem;
 }
 
 .vuk-console-events-filter,
