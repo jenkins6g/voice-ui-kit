@@ -11,11 +11,11 @@
     :transport-type="transportType"
     @initialized="onInitialized"
   >
-    <template #default="{ client, error, handleConnect, handleDisconnect }">
+    <template #default="{ client, error, handleConnect, handleDisconnect, transportState }">
       <section :class="['vuk-console-template', className]">
         <header :class="['vuk-console-header', classNames?.header]">
           <span class="vuk-console-logo">{{ noLogo ? '' : logoLabel }}</span>
-          <strong class="vuk-console-title">{{ titleText }}</strong>
+          <strong class="vuk-console-title">{{ resolvedTitle }}</strong>
           <div class="vuk-console-actions">
             <button
               v-if="!noThemeSwitch"
@@ -24,6 +24,14 @@
               @click="toggleTheme"
             >
               Theme
+            </button>
+            <button
+              v-if="!noInfoPanel"
+              class="vuk-console-panel-button"
+              type="button"
+              @click="toggleInfoPanel"
+            >
+              {{ isInfoPanelCollapsed ? 'Show Info' : 'Hide Info' }}
             </button>
             <ConnectButton
               :on-connect="handleConnect"
@@ -41,61 +49,328 @@
           Initializing client...
         </div>
 
-        <div v-else :class="['vuk-console-main', classNames?.main]">
-          <div v-if="!noBotAudio" class="vuk-console-visualizer-wrap">
-            <VoiceVisualizer participant-type="bot" :class="classNames?.visualizer" />
-          </div>
+        <div
+          v-else
+          ref="desktopRootRef"
+          :class="['vuk-console-main', classNames?.main]"
+          data-testid="console-main"
+        >
+          <section class="vuk-console-desktop" data-testid="desktop-layout">
+            <div class="vuk-console-desktop-main" :style="desktopMainStyle">
+              <div
+                v-if="hasMediaPanel"
+                class="vuk-console-desktop-panel"
+                :style="panelStyle('media')"
+                data-testid="desktop-media-panel"
+              >
+                <section class="vuk-console-block">
+                  <h3>Bot</h3>
+                  <div v-if="!noBotAudio" class="vuk-console-visualizer-wrap">
+                    <VoiceVisualizer participant-type="bot" :class="classNames?.visualizer" />
+                  </div>
+                  <p v-if="!noBotVideo" class="vuk-console-muted">Bot video panel pending full media parity.</p>
+                </section>
+              </div>
 
-          <ControlBar :class-name="classNames?.controlBar">
-            <UserAudioControl v-if="!noUserAudio" />
-            <UserVideoControl v-if="!noUserVideo" :no-video="true" no-device-picker />
-            <ControlBarDivider />
-            <ConnectButton
-              :on-connect="handleConnect"
-              :on-disconnect="handleDisconnect"
+              <button
+                v-if="showDesktopHandle('media', 'conversation')"
+                class="vuk-console-handle vuk-console-handle-vertical"
+                type="button"
+                aria-label="Resize media and conversation"
+                data-testid="desktop-handle-media-conversation"
+                @pointerdown="startHorizontalDrag($event, 'media', 'conversation')"
+              />
+
+              <div
+                v-if="hasConversationPanel"
+                class="vuk-console-desktop-panel"
+                :style="panelStyle('conversation')"
+                data-testid="desktop-conversation-panel"
+              >
+                <section class="vuk-console-block vuk-console-conversation-block">
+                  <header class="vuk-console-block-tabs">
+                    <button
+                      v-if="!noConversation"
+                      :class="['vuk-console-tab', { 'is-active': conversationTab === 'conversation' }]"
+                      type="button"
+                      data-testid="conversation-tab-conversation"
+                      @click="conversationTab = 'conversation'"
+                    >
+                      Conversation
+                    </button>
+                    <button
+                      v-if="!noMetrics"
+                      :class="['vuk-console-tab', { 'is-active': conversationTab === 'metrics' }]"
+                      type="button"
+                      data-testid="conversation-tab-metrics"
+                      @click="conversationTab = 'metrics'"
+                    >
+                      Metrics
+                    </button>
+                  </header>
+
+                  <div
+                    v-if="conversationTab === 'conversation' && !noConversation"
+                    class="vuk-console-panel-content"
+                    data-testid="conversation-panel"
+                  >
+                    <ul class="vuk-console-conversation-list">
+                      <li
+                        v-for="message in conversationMessages"
+                        :key="message.id"
+                        class="vuk-console-conversation-item"
+                      >
+                        <strong>{{ roleLabel(message.role) }}</strong>
+                        <span>{{ messageText(message) }}</span>
+                      </li>
+                      <li v-if="!conversationMessages.length" class="vuk-console-muted">
+                        No messages yet.
+                      </li>
+                    </ul>
+                    <div v-if="!resolvedNoTextInput" class="vuk-console-input-row">
+                      <input
+                        v-model="pendingMessage"
+                        class="vuk-console-input"
+                        :disabled="!isSendEnabled || isSendingText"
+                        placeholder="Type a message"
+                        type="text"
+                        data-testid="conversation-input"
+                        @keydown.enter.prevent="handleSendText(client, transportState)"
+                      />
+                      <button
+                        class="vuk-console-send-button"
+                        type="button"
+                        :disabled="!isSendEnabled || !pendingMessage.trim() || isSendingText"
+                        data-testid="conversation-send"
+                        @click="handleSendText(client, transportState)"
+                      >
+                        Send
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="conversationTab === 'metrics' && !noMetrics"
+                    class="vuk-console-panel-content"
+                    data-testid="metrics-panel"
+                  >
+                    <ul class="vuk-console-event-list">
+                      <li v-for="metric in metricsEntries" :key="metric.id" class="vuk-console-event-item">
+                        <span class="vuk-console-event-time">{{ metric.time }}</span>
+                        <span class="vuk-console-event-name">metrics</span>
+                        <span class="vuk-console-event-message">{{ metric.message }}</span>
+                      </li>
+                      <li v-if="!metricsEntries.length" class="vuk-console-muted">No metrics events yet.</li>
+                    </ul>
+                  </div>
+                </section>
+              </div>
+
+              <button
+                v-if="showDesktopHandle('conversation', 'info')"
+                class="vuk-console-handle vuk-console-handle-vertical"
+                type="button"
+                aria-label="Resize conversation and info"
+                data-testid="desktop-handle-conversation-info"
+                @pointerdown="startHorizontalDrag($event, 'conversation', 'info')"
+              />
+
+              <div
+                v-if="!noInfoPanel"
+                class="vuk-console-desktop-panel"
+                :style="panelStyle('info')"
+                :data-collapsed="isInfoPanelCollapsed ? 'true' : 'false'"
+                data-testid="desktop-info-panel"
+              >
+                <section class="vuk-console-block">
+                  <h3>Info</h3>
+                  <div v-if="isInfoPanelCollapsed" class="vuk-console-muted">Info panel collapsed.</div>
+                  <template v-else>
+                    <ClientStatus
+                      v-if="!noStatusInfo"
+                      :class-names="{ container: classNames?.status }"
+                    />
+                    <div v-if="!noDevices" class="vuk-console-controls-grid">
+                      <UserAudioControl v-if="!noUserAudio" />
+                      <UserVideoControl v-if="!noUserVideo" :no-video="true" no-device-picker />
+                      <UserScreenControl v-if="!noScreenControl" />
+                    </div>
+                    <dl v-if="!noSessionInfo" class="vuk-console-session">
+                      <dt>Participant ID</dt>
+                      <dd>{{ participantId || '-' }}</dd>
+                      <dt>Session ID</dt>
+                      <dd>{{ sessionId || '-' }}</dd>
+                      <dt>RTVI</dt>
+                      <dd>{{ noRTVI ? 'disabled' : serverRTVIVersion || 'unknown' }}</dd>
+                    </dl>
+                  </template>
+                </section>
+              </div>
+            </div>
+
+            <button
+              class="vuk-console-handle vuk-console-handle-horizontal"
+              type="button"
+              aria-label="Resize main and events"
+              data-testid="desktop-handle-main-events"
+              @pointerdown="startVerticalDrag"
             />
-          </ControlBar>
 
-          <section v-if="!noStatusInfo" class="vuk-console-block">
-            <h3>Status</h3>
-            <ClientStatus :class-names="{ container: classNames?.status }" />
+            <section
+              class="vuk-console-block vuk-console-events-panel"
+              :style="desktopEventsStyle"
+              data-testid="events-panel"
+            >
+              <header class="vuk-console-events-header">
+                <h3>Events</h3>
+                <input
+                  v-model="eventFilter"
+                  class="vuk-console-events-filter"
+                  placeholder="Filter"
+                  type="text"
+                  data-testid="events-filter"
+                />
+              </header>
+              <ul ref="eventsScrollRef" class="vuk-console-event-list">
+                <li v-for="eventItem in filteredEvents" :key="eventItem.id" class="vuk-console-event-item">
+                  <span class="vuk-console-event-time">{{ eventItem.time }}</span>
+                  <span class="vuk-console-event-name">{{ eventItem.event }}</span>
+                  <span class="vuk-console-event-message">{{ eventItem.message }}</span>
+                </li>
+                <li v-if="!filteredEvents.length" class="vuk-console-muted">No events yet.</li>
+              </ul>
+            </section>
           </section>
 
-          <section v-if="!noSessionInfo" class="vuk-console-block">
-            <h3>Session</h3>
-            <dl class="vuk-console-session">
-              <dt>Participant ID</dt>
-              <dd>{{ participantId || '-' }}</dd>
-              <dt>Session ID</dt>
-              <dd>{{ sessionId || '-' }}</dd>
-              <dt>RTVI</dt>
-              <dd>{{ noRTVI ? 'disabled' : serverRTVIVersion || 'unknown' }}</dd>
-            </dl>
-          </section>
+          <section class="vuk-console-mobile" data-testid="mobile-layout">
+            <div class="vuk-console-mobile-content">
+              <section
+                v-if="mobileTab === 'bot' && hasMediaPanel"
+                class="vuk-console-block"
+                data-testid="mobile-tab-bot"
+              >
+                <h3>Bot</h3>
+                <div v-if="!noBotAudio" class="vuk-console-visualizer-wrap">
+                  <VoiceVisualizer participant-type="bot" />
+                </div>
+                <p v-if="!noBotVideo" class="vuk-console-muted">Bot video panel pending full media parity.</p>
+              </section>
 
-          <section v-if="!noConversation" class="vuk-console-block">
-            <h3>Conversation</h3>
-            <p class="vuk-console-muted">
-              Labels: assistant={{ assistantLabelText || 'assistant' }},
-              user={{ userLabelText || 'user' }},
-              system={{ systemLabelText || 'system' }}
-            </p>
-            <input
-              v-if="!noTextInput"
-              class="vuk-console-input"
-              placeholder="Type a message"
-              type="text"
-            />
-          </section>
+              <section
+                v-if="mobileTab === 'conversation' && hasConversationPanel"
+                class="vuk-console-block"
+                data-testid="mobile-tab-conversation"
+              >
+                <h3>Conversation</h3>
+                <ul class="vuk-console-conversation-list">
+                  <li
+                    v-for="message in conversationMessages"
+                    :key="message.id"
+                    class="vuk-console-conversation-item"
+                  >
+                    <strong>{{ roleLabel(message.role) }}</strong>
+                    <span>{{ messageText(message) }}</span>
+                  </li>
+                  <li v-if="!conversationMessages.length" class="vuk-console-muted">
+                    No messages yet.
+                  </li>
+                </ul>
+                <div v-if="!resolvedNoTextInput" class="vuk-console-input-row">
+                  <input
+                    v-model="pendingMessage"
+                    class="vuk-console-input"
+                    :disabled="!isSendEnabled || isSendingText"
+                    placeholder="Type a message"
+                    type="text"
+                    data-testid="mobile-conversation-input"
+                    @keydown.enter.prevent="handleSendText(client, transportState)"
+                  />
+                  <button
+                    class="vuk-console-send-button"
+                    type="button"
+                    :disabled="!isSendEnabled || !pendingMessage.trim() || isSendingText"
+                    data-testid="mobile-conversation-send"
+                    @click="handleSendText(client, transportState)"
+                  >
+                    Send
+                  </button>
+                </div>
+              </section>
 
-          <section v-if="!noMetrics" class="vuk-console-block">
-            <h3>Metrics</h3>
-            <p class="vuk-console-muted">Metrics panel parity scaffold.</p>
-          </section>
+              <section
+                v-if="mobileTab === 'info' && !noInfoPanel"
+                class="vuk-console-block"
+                data-testid="mobile-tab-info"
+              >
+                <h3>Info</h3>
+                <ClientStatus v-if="!noStatusInfo" />
+                <div v-if="!noDevices" class="vuk-console-controls-grid">
+                  <UserAudioControl v-if="!noUserAudio" />
+                  <UserVideoControl v-if="!noUserVideo" :no-video="true" no-device-picker />
+                  <UserScreenControl v-if="!noScreenControl" />
+                </div>
+                <dl v-if="!noSessionInfo" class="vuk-console-session">
+                  <dt>Participant ID</dt>
+                  <dd>{{ participantId || '-' }}</dd>
+                  <dt>Session ID</dt>
+                  <dd>{{ sessionId || '-' }}</dd>
+                </dl>
+              </section>
 
-          <section v-if="!noBotVideo" class="vuk-console-block">
-            <h3>Bot Video</h3>
-            <p class="vuk-console-muted">Bot video parity scaffold.</p>
+              <section
+                v-if="mobileTab === 'events'"
+                class="vuk-console-block"
+                data-testid="mobile-tab-events"
+              >
+                <h3>Events</h3>
+                <ul class="vuk-console-event-list">
+                  <li v-for="eventItem in filteredEvents" :key="eventItem.id" class="vuk-console-event-item">
+                    <span class="vuk-console-event-time">{{ eventItem.time }}</span>
+                    <span class="vuk-console-event-name">{{ eventItem.event }}</span>
+                    <span class="vuk-console-event-message">{{ eventItem.message }}</span>
+                  </li>
+                  <li v-if="!filteredEvents.length" class="vuk-console-muted">No events yet.</li>
+                </ul>
+              </section>
+            </div>
+
+            <nav class="vuk-console-mobile-tabs">
+              <button
+                v-if="hasMediaPanel"
+                :class="['vuk-console-mobile-tab', { 'is-active': mobileTab === 'bot' }]"
+                type="button"
+                data-testid="mobile-trigger-bot"
+                @click="mobileTab = 'bot'"
+              >
+                Bot
+              </button>
+              <button
+                v-if="hasConversationPanel"
+                :class="['vuk-console-mobile-tab', { 'is-active': mobileTab === 'conversation' }]"
+                type="button"
+                data-testid="mobile-trigger-conversation"
+                @click="mobileTab = 'conversation'"
+              >
+                Conversation
+              </button>
+              <button
+                v-if="!noInfoPanel"
+                :class="['vuk-console-mobile-tab', { 'is-active': mobileTab === 'info' }]"
+                type="button"
+                data-testid="mobile-trigger-info"
+                @click="mobileTab = 'info'"
+              >
+                Info
+              </button>
+              <button
+                :class="['vuk-console-mobile-tab', { 'is-active': mobileTab === 'events' }]"
+                type="button"
+                data-testid="mobile-trigger-events"
+                @click="mobileTab = 'events'"
+              >
+                Events
+              </button>
+            </nav>
           </section>
         </div>
       </section>
@@ -105,22 +380,59 @@
 
 <script setup lang="ts">
 import {
+  type BotOutputData,
   RTVIEvent,
+  TransportStateEnum,
   type PipecatClient,
   type PipecatClientOptions,
+  type TransportState,
 } from "@pipecat-ai/client-js";
-import { computed, onUnmounted, ref, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onUnmounted,
+  ref,
+  watch,
+} from "vue";
 
 import ClientStatus from "../components/ClientStatus.vue";
 import ConnectButton from "../components/ConnectButton.vue";
-import ControlBar from "../components/ControlBar.vue";
-import ControlBarDivider from "../components/ControlBarDivider.vue";
 import ErrorCard from "../components/ErrorCard.vue";
 import PipecatAppBase from "../components/PipecatAppBase.vue";
 import UserAudioControl from "../components/UserAudioControl.vue";
+import UserScreenControl from "../components/UserScreenControl.vue";
 import UserVideoControl from "../components/UserVideoControl.vue";
 import VoiceVisualizer from "../components/VoiceVisualizer.vue";
+import { loadTransport } from "../lib/transports";
 import type { ConsoleTemplateProps } from "../types/consoleTemplate";
+
+type PanelKey = "media" | "conversation" | "info";
+type MobileTab = "bot" | "conversation" | "info" | "events";
+
+type ConversationMessage = {
+  id: string;
+  role: "assistant" | "user" | "system";
+  parts: Array<{
+    text: string;
+    final: boolean;
+    createdAt: string;
+  }>;
+  final: boolean;
+  createdAt: string;
+};
+
+type EventEntry = {
+  id: string;
+  event: string;
+  message: string;
+  time: string;
+};
+
+type MetricsEntry = {
+  id: string;
+  time: string;
+  message: string;
+};
 
 const props = withDefaults(defineProps<ConsoleTemplateProps>(), {
   transportType: "smallwebrtc",
@@ -139,14 +451,44 @@ const props = withDefaults(defineProps<ConsoleTemplateProps>(), {
   noStatusInfo: false,
   noConversation: false,
   noMetrics: false,
-  titleText: "Pipecat Playground",
   theme: "system",
   className: "",
+  audioCodec: "default",
+  videoCodec: "default",
+  collapseInfoPanel: false,
+  collapseMediaPanel: false,
 });
 
 const currentTheme = ref(props.theme);
 const participantId = ref("");
 const sessionId = ref("");
+
+const conversationMessages = ref<ConversationMessage[]>([]);
+const pendingMessage = ref("");
+const isSendingText = ref(false);
+const metricsEntries = ref<MetricsEntry[]>([]);
+const events = ref<EventEntry[]>([]);
+const eventFilter = ref("");
+
+const desktopRootRef = ref<HTMLElement | null>(null);
+const eventsScrollRef = ref<HTMLElement | null>(null);
+const initializedClient = ref<PipecatClient | null>(null);
+
+const panelSizes = ref<Record<PanelKey, number>>({
+  media: props.collapseMediaPanel ? 8 : 26,
+  conversation: props.collapseInfoPanel ? 70 : 47,
+  info: props.collapseInfoPanel ? 4 : 27,
+});
+const verticalSizes = ref({
+  main: 70,
+  events: 30,
+});
+const isInfoPanelCollapsed = ref(props.collapseInfoPanel);
+const isBotAreaCollapsed = ref(props.collapseMediaPanel);
+
+const mobileTab = ref<MobileTab>("events");
+const conversationTab = ref(props.noConversation ? "metrics" : "conversation");
+const hasSetInitialMobileTab = ref(false);
 
 const clientOptions = computed<Partial<PipecatClientOptions>>(() => {
   return props.clientOptions || {
@@ -156,9 +498,308 @@ const clientOptions = computed<Partial<PipecatClientOptions>>(() => {
 });
 
 const logoLabel = computed(() => props.logoComponent || "Pipecat");
+const resolvedTitle = computed(() => props.titleText ?? props.title ?? "Pipecat Playground");
+const resolvedNoTextInput = computed(
+  () => props.noTextInput || props.conversationElementProps?.noTextInput === true,
+);
+
+const noDevices = computed(
+  () => props.noUserAudio && props.noUserVideo && props.noScreenControl,
+);
+const noInfoPanel = computed(
+  () => props.noStatusInfo && noDevices.value && props.noSessionInfo,
+);
+const hasMediaPanel = computed(() => !(props.noBotAudio && props.noBotVideo));
+const hasConversationPanel = computed(() => !(props.noConversation && props.noMetrics));
+
+const isSendEnabled = computed(() => true);
+
+const filteredEvents = computed(() => {
+  const filter = eventFilter.value.trim().toLowerCase();
+  if (!filter) {
+    return events.value;
+  }
+
+  return events.value.filter((item) => {
+    return (
+      item.event.toLowerCase().includes(filter) ||
+      item.message.toLowerCase().includes(filter)
+    );
+  });
+});
+
+const visibleDesktopPanels = computed<PanelKey[]>(() => {
+  const result: PanelKey[] = [];
+  if (hasMediaPanel.value) {
+    result.push("media");
+  }
+  if (hasConversationPanel.value) {
+    result.push("conversation");
+  }
+  if (!noInfoPanel.value) {
+    result.push("info");
+  }
+  return result;
+});
+
+const desktopMainStyle = computed(() => {
+  return {
+    height: `${verticalSizes.value.main}%`,
+  };
+});
+
+const desktopEventsStyle = computed(() => {
+  return {
+    height: `${verticalSizes.value.events}%`,
+  };
+});
+
+const panelStyle = (panel: PanelKey) => {
+  const visible = visibleDesktopPanels.value;
+  if (!visible.length) {
+    return { width: "100%" };
+  }
+
+  if (!visible.includes(panel)) {
+    return { display: "none" };
+  }
+
+  const sum = visible.reduce((acc, key) => acc + panelSizes.value[key], 0);
+  const width = sum === 0 ? 100 / visible.length : (panelSizes.value[panel] / sum) * 100;
+
+  return {
+    width: `${Math.max(width, 0)}%`,
+  };
+};
+
+const minPanelSize = (panel: PanelKey) => {
+  if (panel === "media") {
+    return isBotAreaCollapsed.value ? 8 : 10;
+  }
+  if (panel === "conversation") {
+    return 30;
+  }
+  return isInfoPanelCollapsed.value ? 4 : 15;
+};
+
+const defaultMobileTab = (): MobileTab => {
+  if (hasMediaPanel.value) {
+    return "bot";
+  }
+  if (hasConversationPanel.value) {
+    return "conversation";
+  }
+  if (!noInfoPanel.value) {
+    return "info";
+  }
+  return "events";
+};
+
+const showDesktopHandle = (left: PanelKey, right: PanelKey) => {
+  return visibleDesktopPanels.value.includes(left) && visibleDesktopPanels.value.includes(right);
+};
 
 const toggleTheme = () => {
   currentTheme.value = currentTheme.value === "dark" ? "light" : "dark";
+};
+
+const toggleInfoPanel = () => {
+  isInfoPanelCollapsed.value = !isInfoPanelCollapsed.value;
+  panelSizes.value.info = isInfoPanelCollapsed.value ? 4 : 27;
+};
+
+const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const formatNow = () => new Date().toLocaleTimeString();
+
+const roleLabel = (role: ConversationMessage["role"]) => {
+  if (role === "assistant") {
+    return (
+      props.conversationElementProps?.assistantLabel ||
+      props.assistantLabelText ||
+      "assistant"
+    );
+  }
+  if (role === "user") {
+    return props.conversationElementProps?.clientLabel || props.userLabelText || "user";
+  }
+  return props.conversationElementProps?.systemLabel || props.systemLabelText || "system";
+};
+
+const messageText = (message: ConversationMessage) => {
+  return message.parts.map((part) => part.text).join("");
+};
+
+const pushEvent = (event: string, message: string) => {
+  events.value.push({
+    id: makeId(),
+    event,
+    message,
+    time: formatNow(),
+  });
+};
+
+const pushMetric = (message: string) => {
+  metricsEntries.value.push({
+    id: makeId(),
+    time: formatNow(),
+    message,
+  });
+};
+
+const injectMessage = (message: {
+  role: "assistant" | "user" | "system";
+  parts: Array<{ text: string; final: boolean; createdAt: string }>;
+}) => {
+  const normalizedParts = message.parts
+    .filter((part) => typeof part.text === "string")
+    .map((part) => ({
+      text: part.text,
+      final: !!part.final,
+      createdAt: part.createdAt || new Date().toISOString(),
+    }));
+
+  if (!normalizedParts.length) {
+    return;
+  }
+
+  const isFinal = normalizedParts.every((part) => part.final);
+  const createdAt = normalizedParts[0]?.createdAt || new Date().toISOString();
+  const lastMessage = conversationMessages.value[conversationMessages.value.length - 1];
+
+  if (lastMessage && lastMessage.role === message.role && !lastMessage.final) {
+    lastMessage.parts.push(...normalizedParts);
+    lastMessage.final = isFinal;
+    return;
+  }
+
+  conversationMessages.value.push({
+    id: makeId(),
+    role: message.role,
+    parts: normalizedParts,
+    final: isFinal,
+    createdAt,
+  });
+};
+
+const sendMessage = async (client: PipecatClient, text: string) => {
+  const sendText = (client as unknown as { sendText?: (message: string) => Promise<void> }).sendText;
+  if (!sendText) {
+    throw new Error("sendText is not available on client");
+  }
+
+  await sendText(text);
+};
+
+const canSendForState = (transportState?: TransportState) => {
+  return (
+    transportState === TransportStateEnum.CONNECTED ||
+    transportState === TransportStateEnum.READY
+  );
+};
+
+const handleSendText = async (client: PipecatClient, transportState?: TransportState) => {
+  if (!pendingMessage.value.trim() || isSendingText.value) {
+    return;
+  }
+
+  if (!canSendForState(transportState)) {
+    return;
+  }
+
+  const text = pendingMessage.value.trim();
+
+  isSendingText.value = true;
+
+  try {
+    injectMessage({
+      role: "user",
+      parts: [
+        {
+          text,
+          final: true,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    });
+
+    await sendMessage(client, text);
+    pendingMessage.value = "";
+  } catch (error) {
+    pushEvent("sendText", `Failed to send text: ${String(error)}`);
+  } finally {
+    isSendingText.value = false;
+  }
+};
+
+const startHorizontalDrag = (event: PointerEvent, left: PanelKey, right: PanelKey) => {
+  const container = desktopRootRef.value;
+  if (!container) {
+    return;
+  }
+
+  const width = container.getBoundingClientRect().width || 1000;
+
+  const startX = event.clientX;
+  const startLeft = panelSizes.value[left];
+  const startRight = panelSizes.value[right];
+
+  const onMove = (moveEvent: PointerEvent) => {
+    const deltaPercent = ((moveEvent.clientX - startX) / width) * 100;
+    const nextLeft = startLeft + deltaPercent;
+    const nextRight = startRight - deltaPercent;
+    const minLeft = minPanelSize(left);
+    const minRight = minPanelSize(right);
+
+    if (nextLeft < minLeft || nextRight < minRight) {
+      return;
+    }
+
+    panelSizes.value[left] = nextLeft;
+    panelSizes.value[right] = nextRight;
+  };
+
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+};
+
+const startVerticalDrag = (event: PointerEvent) => {
+  const container = desktopRootRef.value;
+  if (!container) {
+    return;
+  }
+
+  const height = container.getBoundingClientRect().height || 1000;
+
+  const startY = event.clientY;
+  const startMain = verticalSizes.value.main;
+  const startEvents = verticalSizes.value.events;
+
+  const onMove = (moveEvent: PointerEvent) => {
+    const deltaPercent = ((moveEvent.clientY - startY) / height) * 100;
+    const nextMain = startMain + deltaPercent;
+    const nextEvents = startEvents - deltaPercent;
+
+    if (nextMain < 50 || nextEvents < 7) {
+      return;
+    }
+
+    verticalSizes.value.main = nextMain;
+    verticalSizes.value.events = nextEvents;
+  };
+
+  const onUp = () => {
+    window.removeEventListener("pointermove", onMove);
+    window.removeEventListener("pointerup", onUp);
+  };
+
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
 };
 
 watch(
@@ -168,79 +809,191 @@ watch(
   },
 );
 
+watch(
+  [hasMediaPanel, hasConversationPanel, noInfoPanel],
+  () => {
+    if (!hasSetInitialMobileTab.value) {
+      mobileTab.value = defaultMobileTab();
+      hasSetInitialMobileTab.value = true;
+      return;
+    }
+
+    const current = mobileTab.value;
+    const currentAllowed =
+      (current === "bot" && hasMediaPanel.value) ||
+      (current === "conversation" && hasConversationPanel.value) ||
+      (current === "info" && !noInfoPanel.value) ||
+      current === "events";
+
+    if (!currentAllowed) {
+      mobileTab.value = defaultMobileTab();
+    }
+  },
+  { immediate: true },
+);
+
+watch(
+  () => props.noConversation,
+  (noConversation) => {
+    if (noConversation && conversationTab.value === "conversation") {
+      conversationTab.value = "metrics";
+    }
+  },
+);
+
+watch(
+  () => props.onInjectMessage,
+  (onInjectMessage) => {
+    onInjectMessage?.(injectMessage);
+  },
+  { immediate: true },
+);
+
+watch(filteredEvents, () => {
+  void nextTick(() => {
+    const el = eventsScrollRef.value;
+    if (!el) {
+      return;
+    }
+
+    el.scrollTop = el.scrollHeight;
+  });
+});
+
 const bindClientEvents = (client: PipecatClient | null) => {
   if (!client) {
     return () => {};
   }
 
-  const onParticipantConnected = (p: { id?: string; local?: boolean }) => {
-    if (p.local) {
-      participantId.value = p.id || "";
+  const onParticipantConnected = (participant: { id?: string; local?: boolean }) => {
+    if (participant.local) {
+      participantId.value = participant.id || "";
     }
+
+    pushEvent(RTVIEvent.ParticipantConnected, `Participant connected: ${participant.id || 'unknown'}`);
   };
 
-  const onTrackStarted = (_track: unknown, p?: { id?: string; local?: boolean }) => {
-    if (p?.local && p.id) {
-      participantId.value = p.id;
+  const onTrackStarted = (
+    track: { kind?: string },
+    participant?: { id?: string; local?: boolean },
+  ) => {
+    if (participant?.local && participant.id) {
+      participantId.value = participant.id;
     }
+
+    pushEvent(
+      RTVIEvent.TrackStarted,
+      `Track started: ${track.kind || 'unknown'} for ${participant?.id || 'unknown'}`,
+    );
   };
 
   const onBotStarted = (data: { sessionId?: string }) => {
     if (data?.sessionId) {
       sessionId.value = data.sessionId;
     }
+
+    pushEvent(RTVIEvent.BotStarted, `Bot started: ${JSON.stringify(data)}`);
   };
 
   const onServerMessage = (data: unknown) => {
     props.onServerMessage?.(data);
+    pushEvent(RTVIEvent.ServerMessage, `Server message: ${JSON.stringify(data)}`);
   };
+
+  const onMetrics = (data: unknown) => {
+    pushMetric(JSON.stringify(data));
+  };
+
+  const onBotOutput = (data: BotOutputData) => {
+    if (typeof data.text === "string" && data.text.trim()) {
+      injectMessage({
+        role: "assistant",
+        parts: [
+          {
+            text: data.text,
+            final: data.aggregated_by !== "word",
+            createdAt: new Date().toISOString(),
+          },
+        ],
+      });
+    }
+
+    if (data.aggregated_by !== "word") {
+      pushEvent(RTVIEvent.BotOutput, `Bot output: ${JSON.stringify(data)}`);
+    }
+  };
+
+  const onBotStoppedSpeaking = () => {
+    const last = conversationMessages.value[conversationMessages.value.length - 1];
+    if (last && last.role === "assistant") {
+      last.final = true;
+      last.parts = last.parts.map((part) => ({ ...part, final: true }));
+    }
+  };
+
+  const onConnected = () => pushEvent(RTVIEvent.Connected, "Client connected");
+  const onDisconnected = () => pushEvent(RTVIEvent.Disconnected, "Client disconnected");
+  const onError = (data: unknown) => pushEvent(RTVIEvent.Error, `Error: ${JSON.stringify(data)}`);
 
   client.on(RTVIEvent.ParticipantConnected, onParticipantConnected as never);
   client.on(RTVIEvent.TrackStarted, onTrackStarted as never);
   client.on(RTVIEvent.BotStarted, onBotStarted as never);
   client.on(RTVIEvent.ServerMessage, onServerMessage as never);
+  client.on(RTVIEvent.Metrics, onMetrics as never);
+  client.on(RTVIEvent.BotOutput, onBotOutput as never);
+  client.on(RTVIEvent.BotStoppedSpeaking, onBotStoppedSpeaking as never);
+  client.on(RTVIEvent.Connected, onConnected as never);
+  client.on(RTVIEvent.Disconnected, onDisconnected as never);
+  client.on(RTVIEvent.Error, onError as never);
 
   return () => {
     client.off(RTVIEvent.ParticipantConnected, onParticipantConnected as never);
     client.off(RTVIEvent.TrackStarted, onTrackStarted as never);
     client.off(RTVIEvent.BotStarted, onBotStarted as never);
     client.off(RTVIEvent.ServerMessage, onServerMessage as never);
+    client.off(RTVIEvent.Metrics, onMetrics as never);
+    client.off(RTVIEvent.BotOutput, onBotOutput as never);
+    client.off(RTVIEvent.BotStoppedSpeaking, onBotStoppedSpeaking as never);
+    client.off(RTVIEvent.Connected, onConnected as never);
+    client.off(RTVIEvent.Disconnected, onDisconnected as never);
+    client.off(RTVIEvent.Error, onError as never);
   };
 };
 
 let cleanupClientEvents = () => {};
 
-watch(
-  () => props,
-  () => {
-    // Keep reactive dependency in template props set; no-op.
-  },
-);
+const applySmallWebRTCCodecs = async () => {
+  const client = initializedClient.value;
+  if (!client || props.transportType !== "smallwebrtc") {
+    return;
+  }
 
-watch(
-  () => participantId.value,
-  () => {
-    // no-op; avoids lint complaints for parity placeholders.
-  },
-);
+  try {
+    const { SmallWebRTCTransport } = await loadTransport("smallwebrtc");
+    const transport = client.transport as unknown;
+    if (!(transport instanceof SmallWebRTCTransport)) {
+      return;
+    }
 
-watch(
-  () => sessionId.value,
-  () => {
-    // no-op; avoids lint complaints for parity placeholders.
-  },
-);
+    if (props.audioCodec) {
+      transport.setAudioCodec(props.audioCodec);
+    }
 
-watch(
-  () => props.transportType,
-  () => {
-    // placeholder for codec settings parity (smallwebrtc).
-  },
-);
+    if (props.videoCodec) {
+      transport.setVideoCodec(props.videoCodec);
+    }
+  } catch (error) {
+    pushEvent("codec", `Failed to apply codecs: ${String(error)}`);
+  }
+};
 
 const onInitialized = (client: PipecatClient) => {
   cleanupClientEvents();
   cleanupClientEvents = bindClientEvents(client);
+  initializedClient.value = client;
+
+  void applySmallWebRTCCodecs();
+  pushEvent("initialized", `RTVI Client initialized (version ${client.version})`);
 };
 
 onUnmounted(() => {
@@ -248,13 +1001,16 @@ onUnmounted(() => {
 });
 
 watch(
-  () => props.onServerMessage,
+  [
+    () => initializedClient.value,
+    () => props.audioCodec,
+    () => props.videoCodec,
+    () => props.transportType,
+  ],
   () => {
-    // ensure prop tracked
+    void applySmallWebRTCCodecs();
   },
 );
-
-defineExpose({ onInitialized });
 
 const {
   assistantLabelText,
@@ -271,7 +1027,6 @@ const {
   noRTVI,
   noSessionInfo,
   noStatusInfo,
-  noTextInput,
   noThemeSwitch,
   noUserAudio,
   noUserVideo,
@@ -285,6 +1040,12 @@ const {
   transportType,
   userLabelText,
 } = props;
+
+void assistantLabelText;
+void systemLabelText;
+void theme;
+void titleText;
+void userLabelText;
 </script>
 
 <style scoped>
@@ -292,6 +1053,7 @@ const {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
+  min-height: 36rem;
 }
 
 .vuk-console-header {
@@ -316,13 +1078,32 @@ const {
   gap: 0.45rem;
 }
 
-.vuk-console-theme-button {
+.vuk-console-theme-button,
+.vuk-console-panel-button,
+.vuk-console-tab,
+.vuk-console-mobile-tab,
+.vuk-console-send-button {
   background: #fff;
   border: 1px solid #d1d5db;
   border-radius: 999px;
   cursor: pointer;
   font-size: 0.75rem;
   padding: 0.4rem 0.7rem;
+}
+
+.vuk-console-tab.is-active,
+.vuk-console-mobile-tab.is-active {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.vuk-console-send-button:disabled,
+.vuk-console-theme-button:disabled,
+.vuk-console-panel-button:disabled,
+.vuk-console-mobile-tab:disabled {
+  cursor: default;
+  opacity: 0.5;
 }
 
 .vuk-console-loading {
@@ -334,24 +1115,68 @@ const {
 
 .vuk-console-main {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 0.75rem;
+  min-height: 32rem;
 }
 
-.vuk-console-visualizer-wrap {
-  min-height: 3.5rem;
+.vuk-console-desktop {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 24rem;
+}
+
+.vuk-console-desktop-main {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.5rem;
+  min-height: 12rem;
+}
+
+.vuk-console-desktop-panel {
+  min-width: 0;
 }
 
 .vuk-console-block {
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
   padding: 0.7rem 0.9rem;
 }
 
 .vuk-console-block h3 {
   font-size: 0.9rem;
-  margin: 0 0 0.45rem;
+  margin: 0;
+}
+
+.vuk-console-block-tabs {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.vuk-console-conversation-block {
+  overflow: hidden;
+}
+
+.vuk-console-panel-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.vuk-console-visualizer-wrap {
+  min-height: 3.5rem;
+}
+
+.vuk-console-controls-grid {
+  display: grid;
+  gap: 0.5rem;
 }
 
 .vuk-console-muted {
@@ -379,11 +1204,104 @@ const {
   text-align: right;
 }
 
+.vuk-console-conversation-list,
+.vuk-console-event-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0;
+  min-height: 0;
+  overflow: auto;
+  padding: 0;
+}
+
+.vuk-console-conversation-item,
+.vuk-console-event-item {
+  align-items: baseline;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.vuk-console-conversation-item {
+  grid-template-columns: 5rem 1fr;
+}
+
+.vuk-console-event-item {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.72rem;
+  grid-template-columns: minmax(3.5rem, auto) minmax(6rem, auto) 1fr;
+}
+
+.vuk-console-event-time {
+  color: #6b7280;
+}
+
+.vuk-console-event-name {
+  font-weight: 600;
+}
+
+.vuk-console-events-panel {
+  min-height: 6rem;
+}
+
+.vuk-console-events-header {
+  align-items: center;
+  display: flex;
+  gap: 0.5rem;
+  justify-content: space-between;
+}
+
+.vuk-console-events-filter,
 .vuk-console-input {
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
   padding: 0.45rem 0.6rem;
   width: 100%;
+}
+
+.vuk-console-input-row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.vuk-console-handle {
+  background: #e5e7eb;
+  border: 0;
+  border-radius: 999px;
+  cursor: col-resize;
+  flex: 0 0 auto;
+}
+
+.vuk-console-handle-vertical {
+  width: 6px;
+}
+
+.vuk-console-handle-horizontal {
+  cursor: row-resize;
+  height: 6px;
+  margin: 0.45rem 0;
+  width: 100%;
+}
+
+.vuk-console-mobile {
+  display: none;
+  flex: 1;
+  flex-direction: column;
+  min-height: 22rem;
+}
+
+.vuk-console-mobile-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.vuk-console-mobile-tabs {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 @media (max-width: 720px) {
@@ -393,6 +1311,14 @@ const {
 
   .vuk-console-title {
     text-align: left;
+  }
+
+  .vuk-console-desktop {
+    display: none;
+  }
+
+  .vuk-console-mobile {
+    display: flex;
   }
 }
 </style>

@@ -1,5 +1,16 @@
 import type { PipecatBaseProps } from "./pipecat";
 
+type ConsoleMessagePart = {
+  text: string;
+  final: boolean;
+  createdAt: string;
+};
+
+type ConsoleMessage = {
+  role: "user" | "assistant" | "system";
+  parts: ConsoleMessagePart[];
+};
+
 export type ConsoleTemplateProps = Omit<PipecatBaseProps, "children"> & {
   noRTVI?: boolean;
   serverRTVIVersion?: string | null;
@@ -27,7 +38,16 @@ export type ConsoleTemplateProps = Omit<PipecatBaseProps, "children"> & {
   noConversation?: boolean;
   noMetrics?: boolean;
   logoComponent?: string;
+  conversationElementProps?: {
+    noTextInput?: boolean;
+    assistantLabel?: string;
+    clientLabel?: string;
+    systemLabel?: string;
+  };
+  onInjectMessage?: (injectMessage: (message: ConsoleMessage) => void) => void;
   onServerMessage?: (data: unknown) => void;
+  /** @deprecated Use titleText instead */
+  title?: string;
   className?: string;
   classNames?: {
     header?: string;

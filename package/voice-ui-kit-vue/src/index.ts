@@ -12,6 +12,7 @@ export { default as DeviceSelect } from "./components/DeviceSelect.vue";
 export { default as DeviceSelectComponent } from "./components/DeviceSelectComponent.vue";
 export { default as UserVideoControl } from "./components/UserVideoControl.vue";
 export { default as UserVideoComponent } from "./components/UserVideoComponent.vue";
+export { default as UserScreenControl } from "./components/UserScreenControl.vue";
 export { default as ClientStatus } from "./components/ClientStatus.vue";
 export { default as ClientStatusComponent } from "./components/ClientStatusComponent.vue";
 
@@ -85,6 +86,15 @@ export type {
   UserVideoControlState,
   UserVideoControlVariant,
 } from "./types/userVideoControl";
+
+export type {
+  UserScreenControlButtonProps,
+  UserScreenControlClassNames,
+  UserScreenControlProps,
+  UserScreenControlSize,
+  UserScreenControlState,
+  UserScreenControlVariant,
+} from "./types/userScreenControl";
 
 export type { PipecatThemeProps, PipecatBaseChildProps, PipecatBaseProps } from "./types/pipecat";
 
