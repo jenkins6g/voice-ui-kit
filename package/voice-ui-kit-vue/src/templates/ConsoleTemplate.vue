@@ -1721,6 +1721,75 @@ void userLabelText;
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-template {
+  color: #e5e7eb;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-logo {
+  color: #f3f4f6;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-main,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-mobile-content {
+  background: #020617;
+  border-radius: 0.6rem;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-theme-button,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-panel-button,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-tab,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-mini-tab,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-mobile-tab,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-send-button {
+  background: #0f172a;
+  border-color: #1f2937;
+  color: #cbd5e1;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-tab.is-active,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-mini-tab.is-active,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-mobile-tab.is-active {
+  background: #111827;
+  border-color: #374151;
+  color: #f8fafc;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-block {
+  background: #111827;
+  border-color: #1f2937;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-muted,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-session dt,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-event-time,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-msg-time {
+  color: #9ca3af;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-event-name {
+  color: #f3f4f6;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-events-filter,
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-input {
+  background: #0f172a;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-metric-chip {
+  background: #0f172a;
+  border-color: #1f2937;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-handle {
+  background: #1f2937;
+}
+
+:global(.vuk-theme-provider[data-theme="dark"]) .vuk-console-video-wrap {
+  background: #030712;
+}
+
 @media (max-width: 720px) {
   .vuk-console-header {
     grid-template-columns: 1fr;
