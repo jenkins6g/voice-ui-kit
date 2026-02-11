@@ -3,12 +3,12 @@
     <h1>Vue Console (Migration Starter)</h1>
 
     <PipecatAppBase :connect-params="{ webrtcUrl: '/api/offer' }" init-devices-on-mount>
-      <template #default="{ error }">
+      <template #default="{ error, handleConnect, handleDisconnect }">
         <section class="panel">
           <VoiceVisualizer />
           <ControlBar>
             <UserAudioControl />
-            <ConnectButton />
+            <ConnectButton :on-connect="handleConnect" :on-disconnect="handleDisconnect" />
           </ControlBar>
           <ErrorCard v-if="error">{{ error }}</ErrorCard>
           <DummyComponent text="Initial Vue surface is wired." />

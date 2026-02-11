@@ -8,9 +8,34 @@ export { default as VoiceVisualizer } from "./components/VoiceVisualizer.vue";
 export { default as ErrorCard } from "./components/ErrorCard.vue";
 
 export {
-  createPipecatAppContext,
   providePipecatApp,
   tryUsePipecatApp,
   usePipecatApp,
   type PipecatAppContext,
 } from "./composables/pipecatApp";
+
+export {
+  createTransport,
+  loadTransport,
+  type DailyTransportOptions,
+  type SmallWebRTCTransportOptions,
+  type TransportType,
+} from "./lib/transports";
+
+export type {
+  ConnectButtonProps,
+  ConnectButtonSize,
+  ConnectButtonStateContent,
+  ConnectButtonVariant,
+} from "./types/connectButton";
+
+export type {
+  UserAudioControlButtonProps,
+  UserAudioControlClassNames,
+  UserAudioControlProps,
+  UserAudioControlSize,
+  UserAudioControlState,
+  UserAudioControlVariant,
+} from "./types/userAudioControl";
+
+export type { PipecatBaseChildProps, PipecatBaseProps } from "./types/pipecat";

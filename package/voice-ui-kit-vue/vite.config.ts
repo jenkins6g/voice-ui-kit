@@ -12,7 +12,12 @@ export default defineConfig({
       fileName: "index",
     },
     rollupOptions: {
-      external: ["vue", "@pipecat-ai/client-js"],
+      external: [
+        "vue",
+        "@pipecat-ai/client-js",
+        "@pipecat-ai/daily-transport",
+        "@pipecat-ai/small-webrtc-transport",
+      ],
     },
   },
 });
