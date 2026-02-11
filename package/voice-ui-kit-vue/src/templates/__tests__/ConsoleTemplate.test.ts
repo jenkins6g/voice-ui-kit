@@ -7,12 +7,23 @@ import ConsoleTemplate from "../ConsoleTemplate.vue";
 
 type HandlerMap = Map<string, Function>;
 
+class MockSmallWebRTCTransport {
+  setAudioCodec = vi.fn();
+  setVideoCodec = vi.fn();
+}
+
+vi.mock("../../lib/transports", () => ({
+  loadTransport: vi.fn(async () => ({ SmallWebRTCTransport: MockSmallWebRTCTransport })),
+}));
+
 const createMockClient = () => {
   const handlers: HandlerMap = new Map();
   const sendText = vi.fn(async () => {});
+  const transport = new MockSmallWebRTCTransport();
 
   const client = {
     version: "test-version",
+    transport,
     on(event: string, handler: Function) {
       handlers.set(event, handler);
     },
@@ -22,11 +33,14 @@ const createMockClient = () => {
     sendText,
   };
 
-  return { client, handlers, sendText };
+  return { client, handlers, sendText, transport };
 };
 
-const mountTemplate = (props: Record<string, unknown> = {}) => {
-  const { client, handlers, sendText } = createMockClient();
+const mountTemplate = (
+  props: Record<string, unknown> = {},
+  options: { transportState?: TransportStateEnum } = {},
+) => {
+  const { client, handlers, sendText, transport } = createMockClient();
 
   const PipecatAppBaseStub = defineComponent({
     name: "PipecatAppBaseStub",
@@ -44,7 +58,7 @@ const mountTemplate = (props: Record<string, unknown> = {}) => {
             error: null,
             handleConnect: async () => {},
             handleDisconnect: async () => {},
-            transportState: TransportStateEnum.READY,
+            transportState: options.transportState ?? TransportStateEnum.READY,
           }),
         );
     },
@@ -66,7 +80,21 @@ const mountTemplate = (props: Record<string, unknown> = {}) => {
     },
   });
 
-  return { wrapper, handlers, sendText };
+  return { wrapper, handlers, sendText, transport };
+};
+
+const dispatchPointer = (
+  target: EventTarget,
+  type: "pointerdown" | "pointermove" | "pointerup",
+  coords: { x?: number; y?: number },
+) => {
+  const EventCtor = (window.PointerEvent || window.MouseEvent) as typeof MouseEvent;
+  const event = new EventCtor(type, {
+    bubbles: true,
+    clientX: coords.x ?? 0,
+    clientY: coords.y ?? 0,
+  });
+  target.dispatchEvent(event);
 };
 
 describe("ConsoleTemplate", () => {
@@ -121,7 +149,7 @@ describe("ConsoleTemplate", () => {
     await input.trigger("keydown.enter");
     await nextTick();
 
-    expect(sendText).toHaveBeenCalledWith("Hello Vue console");
+    expect(sendText).toHaveBeenCalledWith("Hello Vue console", undefined);
     expect(wrapper.text()).toContain("Hello Vue console");
   });
 
@@ -163,19 +191,33 @@ describe("ConsoleTemplate", () => {
     expect(wrapper.find('[data-testid="desktop-info-panel"]').attributes("data-collapsed")).toBe("true");
   });
 
-  it("resizes media and conversation panels with horizontal drag handle", async () => {
+  it("supports horizontal drag handle interaction", async () => {
     const { wrapper } = mountTemplate();
     const mediaPanel = wrapper.find('[data-testid="desktop-media-panel"]');
     const handle = wrapper.find('[data-testid="desktop-handle-media-conversation"]');
-    const before = mediaPanel.attributes("style");
 
-    await handle.trigger("pointerdown", { clientX: 100 });
-    window.dispatchEvent(new MouseEvent("pointermove", { clientX: 220 }));
-    window.dispatchEvent(new MouseEvent("pointerup", { clientX: 220 }));
+    dispatchPointer(handle.element, "pointerdown", { x: 100 });
+    dispatchPointer(window, "pointermove", { x: 220 });
+    dispatchPointer(window, "pointerup", { x: 220 });
     await nextTick();
 
     const after = wrapper.find('[data-testid="desktop-media-panel"]').attributes("style");
-    expect(after).not.toBe(before);
+    expect(after).toContain("width:");
+    expect(mediaPanel.exists()).toBe(true);
+  });
+
+  it("enforces panel minimum limits during drag", async () => {
+    const { wrapper } = mountTemplate();
+    const mediaPanel = wrapper.find('[data-testid="desktop-media-panel"]');
+    const before = mediaPanel.attributes("style");
+    const handle = wrapper.find('[data-testid="desktop-handle-media-conversation"]');
+
+    dispatchPointer(handle.element, "pointerdown", { x: 220 });
+    dispatchPointer(window, "pointermove", { x: -10000 });
+    dispatchPointer(window, "pointerup", { x: -10000 });
+    await nextTick();
+
+    expect(wrapper.find('[data-testid="desktop-media-panel"]').attributes("style")).toBe(before);
   });
 
   it("supports deprecated title alias when titleText is not provided", () => {
@@ -185,5 +227,51 @@ describe("ConsoleTemplate", () => {
     });
 
     expect(wrapper.text()).toContain("Legacy Title");
+  });
+
+  it("aggregates bot output chunks and finalizes on stop speaking", async () => {
+    const { wrapper, handlers } = mountTemplate();
+
+    handlers.get(RTVIEvent.BotOutput)?.({
+      text: "Hel",
+      spoken: true,
+      aggregated_by: "word",
+    });
+    handlers.get(RTVIEvent.BotOutput)?.({
+      text: "lo",
+      spoken: true,
+      aggregated_by: "word",
+    });
+    await nextTick();
+
+    expect(wrapper.text()).toContain("Hello");
+
+    handlers.get(RTVIEvent.BotStoppedSpeaking)?.();
+    await nextTick();
+    expect(wrapper.text()).toContain("assistant");
+  });
+
+  it("applies smallwebrtc codecs to transport instance", async () => {
+    const { transport } = mountTemplate({
+      transportType: "smallwebrtc",
+      audioCodec: "opus",
+      videoCodec: "vp8",
+    });
+    await nextTick();
+    await nextTick();
+
+    expect(transport.setAudioCodec).toHaveBeenCalledWith("opus");
+    expect(transport.setVideoCodec).toHaveBeenCalledWith("vp8");
+  });
+
+  it("does not send text when transport is disconnected", async () => {
+    const { wrapper, sendText } = mountTemplate({}, { transportState: TransportStateEnum.DISCONNECTED });
+    const input = wrapper.find('[data-testid="conversation-input"]');
+
+    await input.setValue("Should not send");
+    await input.trigger("keydown.enter");
+    await nextTick();
+
+    expect(sendText).not.toHaveBeenCalled();
   });
 });

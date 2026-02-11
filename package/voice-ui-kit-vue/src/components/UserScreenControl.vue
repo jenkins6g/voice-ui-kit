@@ -1,5 +1,8 @@
 <template>
   <div :class="['vuk-screen-group', props.classNames?.buttongroup, props.className]">
+    <div class="vuk-screen-preview" v-if="isScreenEnabled">
+      <video ref="screenVideoRef" autoplay muted playsinline class="vuk-screen-video" />
+    </div>
     <button
       :class="[
         'vuk-screen-button',
@@ -56,6 +59,29 @@ const props = withDefaults(defineProps<UserScreenControlProps>(), {
 
 const context = usePipecatApp();
 const isScreenEnabled = ref(false);
+const screenVideoRef = ref<HTMLVideoElement | null>(null);
+const createSafeMediaStream = () => {
+  if (typeof MediaStream !== "undefined") {
+    return new MediaStream();
+  }
+
+  const tracks: MediaStreamTrack[] = [];
+  return {
+    addTrack(track: MediaStreamTrack) {
+      tracks.push(track);
+    },
+    removeTrack(track: MediaStreamTrack) {
+      const index = tracks.findIndex((item) => item.id === track.id);
+      if (index >= 0) {
+        tracks.splice(index, 1);
+      }
+    },
+    getTracks() {
+      return [...tracks];
+    },
+  } as unknown as MediaStream;
+};
+const screenStream = createSafeMediaStream();
 
 const loading = computed(
   () =>
@@ -100,6 +126,27 @@ const refreshScreenState = () => {
   isScreenEnabled.value = client.isSharingScreen;
 };
 
+const attachScreenPreview = () => {
+  const video = screenVideoRef.value;
+  if (!video) {
+    return;
+  }
+
+  video.srcObject = screenStream;
+};
+
+const setScreenTrack = (track: MediaStreamTrack | null) => {
+  screenStream.getTracks().forEach((existingTrack) => {
+    screenStream.removeTrack(existingTrack);
+  });
+
+  if (track) {
+    screenStream.addTrack(track);
+  }
+
+  attachScreenPreview();
+};
+
 const toggleScreenShare = () => {
   const client = context.client.value;
   if (!client || isDisabled.value) {
@@ -108,6 +155,9 @@ const toggleScreenShare = () => {
 
   client.enableScreenShare(!isScreenEnabled.value);
   isScreenEnabled.value = client.isSharingScreen;
+  if (!isScreenEnabled.value) {
+    setScreenTrack(null);
+  }
 };
 
 let cleanupEvents = () => {};
@@ -119,23 +169,27 @@ const bindClientEvents = () => {
     return;
   }
 
-  const onScreenTrackStarted = (_track: MediaStreamTrack, participant?: { local?: boolean }) => {
+  const onScreenTrackStarted = (track: MediaStreamTrack, participant?: { local?: boolean }) => {
     if (participant?.local !== false) {
       isScreenEnabled.value = true;
+      setScreenTrack(track);
     }
   };
   const onScreenTrackStopped = (_track: MediaStreamTrack, participant?: { local?: boolean }) => {
     if (participant?.local !== false) {
       isScreenEnabled.value = false;
+      setScreenTrack(null);
     }
   };
 
   const onDisconnected = () => {
     isScreenEnabled.value = false;
+    setScreenTrack(null);
   };
 
   const onScreenShareError = () => {
     isScreenEnabled.value = false;
+    setScreenTrack(null);
   };
 
   client.on(RTVIEvent.ScreenTrackStarted, onScreenTrackStarted as never);
@@ -163,12 +217,19 @@ watch(
 
 onUnmounted(() => {
   cleanupEvents();
+  setScreenTrack(null);
+});
+
+watch(screenVideoRef, () => {
+  attachScreenPreview();
 });
 </script>
 
 <style scoped>
 .vuk-screen-group {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
 }
 
 .vuk-screen-button {
@@ -177,6 +238,21 @@ onUnmounted(() => {
   cursor: pointer;
   font-weight: 500;
   padding: 0.5rem 0.8rem;
+}
+
+.vuk-screen-preview {
+  background: #111827;
+  border-radius: 0.5rem;
+  min-height: 7rem;
+  overflow: hidden;
+}
+
+.vuk-screen-video {
+  aspect-ratio: 16 / 9;
+  display: block;
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
 }
 
 .vuk-screen--sm {

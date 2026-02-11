@@ -68,7 +68,17 @@
                   <div v-if="!noBotAudio" class="vuk-console-visualizer-wrap">
                     <VoiceVisualizer participant-type="bot" :class="classNames?.visualizer" />
                   </div>
-                  <p v-if="!noBotVideo" class="vuk-console-muted">Bot video panel pending full media parity.</p>
+                  <div v-if="!noBotVideo" class="vuk-console-video-wrap">
+                    <video
+                      ref="desktopBotVideoRef"
+                      autoplay
+                      muted
+                      playsinline
+                      class="vuk-console-video"
+                      data-testid="bot-video-desktop"
+                    />
+                    <p v-if="!hasBotVideoTrack" class="vuk-console-muted">Waiting for bot video…</p>
+                  </div>
                 </section>
               </div>
 
@@ -131,7 +141,7 @@
                       <input
                         v-model="pendingMessage"
                         class="vuk-console-input"
-                        :disabled="!isSendEnabled || isSendingText"
+                        :disabled="!canSendForState(transportState) || isSendingText"
                         placeholder="Type a message"
                         type="text"
                         data-testid="conversation-input"
@@ -140,7 +150,7 @@
                       <button
                         class="vuk-console-send-button"
                         type="button"
-                        :disabled="!isSendEnabled || !pendingMessage.trim() || isSendingText"
+                        :disabled="!canSendForState(transportState) || !pendingMessage.trim() || isSendingText"
                         data-testid="conversation-send"
                         @click="handleSendText(client, transportState)"
                       >
@@ -184,7 +194,54 @@
               >
                 <section class="vuk-console-block">
                   <h3>Info</h3>
-                  <div v-if="isInfoPanelCollapsed" class="vuk-console-muted">Info panel collapsed.</div>
+                  <div v-if="isInfoPanelCollapsed">
+                    <div class="vuk-console-collapsed-actions">
+                      <button
+                        v-if="!noStatusInfo"
+                        :class="['vuk-console-mini-tab', { 'is-active': collapsedInfoView === 'status' }]"
+                        type="button"
+                        @click="collapsedInfoView = 'status'"
+                      >
+                        Status
+                      </button>
+                      <button
+                        v-if="!noDevices"
+                        :class="['vuk-console-mini-tab', { 'is-active': collapsedInfoView === 'devices' }]"
+                        type="button"
+                        @click="collapsedInfoView = 'devices'"
+                      >
+                        Devices
+                      </button>
+                      <button
+                        v-if="!noSessionInfo"
+                        :class="['vuk-console-mini-tab', { 'is-active': collapsedInfoView === 'session' }]"
+                        type="button"
+                        @click="collapsedInfoView = 'session'"
+                      >
+                        Session
+                      </button>
+                    </div>
+                    <ClientStatus
+                      v-if="collapsedInfoView === 'status' && !noStatusInfo"
+                      :class-names="{ container: classNames?.status }"
+                    />
+                    <div
+                      v-if="collapsedInfoView === 'devices' && !noDevices"
+                      class="vuk-console-controls-grid"
+                    >
+                      <UserAudioControl v-if="!noUserAudio" />
+                      <UserVideoControl v-if="!noUserVideo" :no-video="true" no-device-picker />
+                      <UserScreenControl v-if="!noScreenControl" />
+                    </div>
+                    <dl v-if="collapsedInfoView === 'session' && !noSessionInfo" class="vuk-console-session">
+                      <dt>Participant ID</dt>
+                      <dd>{{ participantId || '-' }}</dd>
+                      <dt>Session ID</dt>
+                      <dd>{{ sessionId || '-' }}</dd>
+                      <dt>RTVI</dt>
+                      <dd>{{ noRTVI ? 'disabled' : serverRTVIVersion || 'unknown' }}</dd>
+                    </dl>
+                  </div>
                   <template v-else>
                     <ClientStatus
                       v-if="!noStatusInfo"
@@ -253,7 +310,17 @@
                 <div v-if="!noBotAudio" class="vuk-console-visualizer-wrap">
                   <VoiceVisualizer participant-type="bot" />
                 </div>
-                <p v-if="!noBotVideo" class="vuk-console-muted">Bot video panel pending full media parity.</p>
+                <div v-if="!noBotVideo" class="vuk-console-video-wrap">
+                  <video
+                    ref="mobileBotVideoRef"
+                    autoplay
+                    muted
+                    playsinline
+                    class="vuk-console-video"
+                    data-testid="bot-video-mobile"
+                  />
+                  <p v-if="!hasBotVideoTrack" class="vuk-console-muted">Waiting for bot video…</p>
+                </div>
               </section>
 
               <section
@@ -279,7 +346,7 @@
                   <input
                     v-model="pendingMessage"
                     class="vuk-console-input"
-                    :disabled="!isSendEnabled || isSendingText"
+                    :disabled="!canSendForState(transportState) || isSendingText"
                     placeholder="Type a message"
                     type="text"
                     data-testid="mobile-conversation-input"
@@ -288,7 +355,7 @@
                   <button
                     class="vuk-console-send-button"
                     type="button"
-                    :disabled="!isSendEnabled || !pendingMessage.trim() || isSendingText"
+                    :disabled="!canSendForState(transportState) || !pendingMessage.trim() || isSendingText"
                     data-testid="mobile-conversation-send"
                     @click="handleSendText(client, transportState)"
                   >
@@ -381,7 +448,9 @@
 <script setup lang="ts">
 import {
   type BotOutputData,
+  type PipecatMetricsData,
   RTVIEvent,
+  type SendTextOptions,
   TransportStateEnum,
   type PipecatClient,
   type PipecatClientOptions,
@@ -408,6 +477,7 @@ import type { ConsoleTemplateProps } from "../types/consoleTemplate";
 
 type PanelKey = "media" | "conversation" | "info";
 type MobileTab = "bot" | "conversation" | "info" | "events";
+type CollapsedInfoView = "status" | "devices" | "session";
 
 type ConversationMessage = {
   id: string;
@@ -472,7 +542,10 @@ const eventFilter = ref("");
 
 const desktopRootRef = ref<HTMLElement | null>(null);
 const eventsScrollRef = ref<HTMLElement | null>(null);
+const desktopBotVideoRef = ref<HTMLVideoElement | null>(null);
+const mobileBotVideoRef = ref<HTMLVideoElement | null>(null);
 const initializedClient = ref<PipecatClient | null>(null);
+const botVideoTrackId = ref<string | null>(null);
 
 const panelSizes = ref<Record<PanelKey, number>>({
   media: props.collapseMediaPanel ? 8 : 26,
@@ -485,6 +558,7 @@ const verticalSizes = ref({
 });
 const isInfoPanelCollapsed = ref(props.collapseInfoPanel);
 const isBotAreaCollapsed = ref(props.collapseMediaPanel);
+const collapsedInfoView = ref<CollapsedInfoView>("status");
 
 const mobileTab = ref<MobileTab>("events");
 const conversationTab = ref(props.noConversation ? "metrics" : "conversation");
@@ -511,8 +585,7 @@ const noInfoPanel = computed(
 );
 const hasMediaPanel = computed(() => !(props.noBotAudio && props.noBotVideo));
 const hasConversationPanel = computed(() => !(props.noConversation && props.noMetrics));
-
-const isSendEnabled = computed(() => true);
+const hasBotVideoTrack = computed(() => botVideoTrackId.value !== null);
 
 const filteredEvents = computed(() => {
   const filter = eventFilter.value.trim().toLowerCase();
@@ -609,6 +682,28 @@ const toggleInfoPanel = () => {
 };
 
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const createSafeMediaStream = () => {
+  if (typeof MediaStream !== "undefined") {
+    return new MediaStream();
+  }
+
+  const tracks: MediaStreamTrack[] = [];
+  return {
+    addTrack(track: MediaStreamTrack) {
+      tracks.push(track);
+    },
+    removeTrack(track: MediaStreamTrack) {
+      const index = tracks.findIndex((item) => item.id === track.id);
+      if (index >= 0) {
+        tracks.splice(index, 1);
+      }
+    },
+    getTracks() {
+      return [...tracks];
+    },
+  } as unknown as MediaStream;
+};
+const botVideoStream = createSafeMediaStream();
 
 const formatNow = () => new Date().toLocaleTimeString();
 
@@ -647,6 +742,27 @@ const pushMetric = (message: string) => {
   });
 };
 
+const summarizeMetrics = (data: PipecatMetricsData) => {
+  const ttfbCount = data.ttfb?.length || 0;
+  const processingCount = data.processing?.length || 0;
+  const charactersCount = data.characters?.length || 0;
+  const processors = (data.ttfb || [])
+    .map((item) => item.processor)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(", ");
+
+  const headline = [
+    ttfbCount ? `ttfb:${ttfbCount}` : "",
+    processingCount ? `processing:${processingCount}` : "",
+    charactersCount ? `chars:${charactersCount}` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  return processors ? `${headline} [${processors}]` : headline || JSON.stringify(data);
+};
+
 const injectMessage = (message: {
   role: "assistant" | "user" | "system";
   parts: Array<{ text: string; final: boolean; createdAt: string }>;
@@ -683,12 +799,14 @@ const injectMessage = (message: {
 };
 
 const sendMessage = async (client: PipecatClient, text: string) => {
-  const sendText = (client as unknown as { sendText?: (message: string) => Promise<void> }).sendText;
+  const sendText = (
+    client as unknown as { sendText?: (message: string, options?: SendTextOptions) => Promise<void> }
+  ).sendText;
   if (!sendText) {
     throw new Error("sendText is not available on client");
   }
 
-  await sendText(text);
+  await sendText(text, props.conversationElementProps?.sendTextOptions);
 };
 
 const canSendForState = (transportState?: TransportState) => {
@@ -750,8 +868,15 @@ const startHorizontalDrag = (event: PointerEvent, left: PanelKey, right: PanelKe
     const nextRight = startRight - deltaPercent;
     const minLeft = minPanelSize(left);
     const minRight = minPanelSize(right);
+    const maxLeft = left === "media" ? 30 : 90;
+    const maxRight = right === "media" ? 30 : 90;
 
-    if (nextLeft < minLeft || nextRight < minRight) {
+    if (
+      nextLeft < minLeft ||
+      nextRight < minRight ||
+      nextLeft > maxLeft ||
+      nextRight > maxRight
+    ) {
       return;
     }
 
@@ -842,12 +967,52 @@ watch(
 );
 
 watch(
+  [() => props.noStatusInfo, noDevices, () => props.noSessionInfo],
+  () => {
+    if (!props.noStatusInfo) {
+      collapsedInfoView.value = "status";
+      return;
+    }
+    if (!noDevices.value) {
+      collapsedInfoView.value = "devices";
+      return;
+    }
+    collapsedInfoView.value = "session";
+  },
+  { immediate: true },
+);
+
+watch(
   () => props.onInjectMessage,
   (onInjectMessage) => {
     onInjectMessage?.(injectMessage);
   },
   { immediate: true },
 );
+
+const attachBotVideo = () => {
+  [desktopBotVideoRef.value, mobileBotVideoRef.value].forEach((el) => {
+    if (!el) {
+      return;
+    }
+
+    el.srcObject = botVideoStream;
+  });
+};
+
+const setBotVideoTrack = (track: MediaStreamTrack | null) => {
+  botVideoStream.getTracks().forEach((existingTrack) => {
+    botVideoStream.removeTrack(existingTrack);
+  });
+
+  botVideoTrackId.value = track?.id ?? null;
+
+  if (track) {
+    botVideoStream.addTrack(track);
+  }
+
+  attachBotVideo();
+};
 
 watch(filteredEvents, () => {
   void nextTick(() => {
@@ -874,16 +1039,31 @@ const bindClientEvents = (client: PipecatClient | null) => {
   };
 
   const onTrackStarted = (
-    track: { kind?: string },
+    track: MediaStreamTrack,
     participant?: { id?: string; local?: boolean },
   ) => {
     if (participant?.local && participant.id) {
       participantId.value = participant.id;
     }
 
+    if (track.kind === "video" && participant?.local === false) {
+      setBotVideoTrack(track);
+    }
+
     pushEvent(
       RTVIEvent.TrackStarted,
       `Track started: ${track.kind || 'unknown'} for ${participant?.id || 'unknown'}`,
+    );
+  };
+
+  const onTrackStopped = (track: MediaStreamTrack, participant?: { id?: string; local?: boolean }) => {
+    if (track.kind === "video" && participant?.local === false && botVideoTrackId.value === track.id) {
+      setBotVideoTrack(null);
+    }
+
+    pushEvent(
+      RTVIEvent.TrackStopped,
+      `Track stopped: ${track.kind || "unknown"} for ${participant?.id || "unknown"}`,
     );
   };
 
@@ -900,8 +1080,8 @@ const bindClientEvents = (client: PipecatClient | null) => {
     pushEvent(RTVIEvent.ServerMessage, `Server message: ${JSON.stringify(data)}`);
   };
 
-  const onMetrics = (data: unknown) => {
-    pushMetric(JSON.stringify(data));
+  const onMetrics = (data: PipecatMetricsData) => {
+    pushMetric(summarizeMetrics(data));
   };
 
   const onBotOutput = (data: BotOutputData) => {
@@ -937,6 +1117,7 @@ const bindClientEvents = (client: PipecatClient | null) => {
 
   client.on(RTVIEvent.ParticipantConnected, onParticipantConnected as never);
   client.on(RTVIEvent.TrackStarted, onTrackStarted as never);
+  client.on(RTVIEvent.TrackStopped, onTrackStopped as never);
   client.on(RTVIEvent.BotStarted, onBotStarted as never);
   client.on(RTVIEvent.ServerMessage, onServerMessage as never);
   client.on(RTVIEvent.Metrics, onMetrics as never);
@@ -949,6 +1130,7 @@ const bindClientEvents = (client: PipecatClient | null) => {
   return () => {
     client.off(RTVIEvent.ParticipantConnected, onParticipantConnected as never);
     client.off(RTVIEvent.TrackStarted, onTrackStarted as never);
+    client.off(RTVIEvent.TrackStopped, onTrackStopped as never);
     client.off(RTVIEvent.BotStarted, onBotStarted as never);
     client.off(RTVIEvent.ServerMessage, onServerMessage as never);
     client.off(RTVIEvent.Metrics, onMetrics as never);
@@ -998,6 +1180,7 @@ const onInitialized = (client: PipecatClient) => {
 
 onUnmounted(() => {
   cleanupClientEvents();
+  setBotVideoTrack(null);
 });
 
 watch(
@@ -1011,6 +1194,10 @@ watch(
     void applySmallWebRTCCodecs();
   },
 );
+
+watch([desktopBotVideoRef, mobileBotVideoRef], () => {
+  attachBotVideo();
+});
 
 const {
   assistantLabelText,
@@ -1081,6 +1268,7 @@ void userLabelText;
 .vuk-console-theme-button,
 .vuk-console-panel-button,
 .vuk-console-tab,
+.vuk-console-mini-tab,
 .vuk-console-mobile-tab,
 .vuk-console-send-button {
   background: #fff;
@@ -1092,6 +1280,7 @@ void userLabelText;
 }
 
 .vuk-console-tab.is-active,
+.vuk-console-mini-tab.is-active,
 .vuk-console-mobile-tab.is-active {
   background: #111827;
   border-color: #111827;
@@ -1179,6 +1368,15 @@ void userLabelText;
   gap: 0.5rem;
 }
 
+.vuk-console-collapsed-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.vuk-console-mini-tab {
+  padding: 0.3rem 0.55rem;
+}
+
 .vuk-console-muted {
   color: #6b7280;
   font-size: 0.8rem;
@@ -1258,6 +1456,24 @@ void userLabelText;
   border: 1px solid #d1d5db;
   border-radius: 0.5rem;
   padding: 0.45rem 0.6rem;
+  width: 100%;
+}
+
+.vuk-console-video-wrap {
+  align-items: center;
+  background: #111827;
+  border-radius: 0.5rem;
+  display: flex;
+  justify-content: center;
+  min-height: 8rem;
+  overflow: hidden;
+  position: relative;
+}
+
+.vuk-console-video {
+  aspect-ratio: 16 / 9;
+  height: 100%;
+  object-fit: cover;
   width: 100%;
 }
 

@@ -1,4 +1,5 @@
 import type { PipecatBaseProps } from "./pipecat";
+import type { SendTextOptions } from "@pipecat-ai/client-js";
 
 type ConsoleMessagePart = {
   text: string;
@@ -43,6 +44,7 @@ export type ConsoleTemplateProps = Omit<PipecatBaseProps, "children"> & {
     assistantLabel?: string;
     clientLabel?: string;
     systemLabel?: string;
+    sendTextOptions?: SendTextOptions;
   };
   onInjectMessage?: (injectMessage: (message: ConsoleMessage) => void) => void;
   onServerMessage?: (data: unknown) => void;

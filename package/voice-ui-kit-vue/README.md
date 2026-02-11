@@ -26,7 +26,7 @@ Vue port of the core `@pipecat-ai/voice-ui-kit` primitives.
 | `ControlBar` + `ErrorCard` | Near parity | API shape aligned; styling is approximate. |
 | `DeviceSelect` | Partial | `DeviceSelectComponent` + connected wrapper exported; advanced select UI differences remain. |
 | `UserVideoControl` | Partial | Headless + connected variants exported; advanced preview/dropdown behavior still simplified. |
-| `UserScreenControl` | Partial | Connected screen-share toggle is implemented; no preview surface yet. |
+| `UserScreenControl` | Partial | Connected screen-share toggle + local preview are implemented; advanced state/UI parity still differs. |
 | `ClientStatus` | Partial | Client/agent status and event wiring present; exact UI micro-states differ. |
 | `ConsoleTemplate` | Partial parity | Functional desktop/mobile layout, conversation/events/metrics panels, and parity toggles are implemented; advanced renderer/store internals still differ from React. |
 
