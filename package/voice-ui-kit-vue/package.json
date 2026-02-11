@@ -26,15 +26,20 @@
     "@pipecat-ai/client-js": "^1.0.0"
   },
   "devDependencies": {
+    "@vue/test-utils": "^2.4.6",
     "@vitejs/plugin-vue": "^6.0.1",
+    "jsdom": "^26.1.0",
     "typescript": "^5.9.3",
     "vite": "^7.1.7",
+    "vitest": "^3.2.4",
     "vue": "^3.5.20",
     "vue-tsc": "^3.1.1"
   },
   "scripts": {
     "build": "vite build && vue-tsc -p tsconfig.json --declaration --emitDeclarationOnly",
     "dev": "vite",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
     "typecheck": "vue-tsc -p tsconfig.json --noEmit"
   }
 }
