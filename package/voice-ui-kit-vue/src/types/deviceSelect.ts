@@ -4,10 +4,25 @@ export type DeviceSelectClassNames = {
   selectItem?: string;
 };
 
-export type DeviceSelectProps = {
+export type DeviceSelectBaseProps = {
   placeholder?: string;
   guide?: string;
   className?: string;
   classNames?: DeviceSelectClassNames;
-  noDevicesText?: string;
+  selectProps?: {
+    disabled?: boolean;
+    required?: boolean;
+    name?: string;
+  };
+  contentProps?: {
+    className?: string;
+  };
 };
+
+export type DeviceSelectComponentProps = DeviceSelectBaseProps & {
+  availableDevices?: MediaDeviceInfo[];
+  selectedDevice?: MediaDeviceInfo | Record<string, never>;
+  updateDevice?: (deviceId: string) => void;
+};
+
+export type DeviceSelectProps = DeviceSelectBaseProps;

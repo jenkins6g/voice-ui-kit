@@ -3,14 +3,9 @@
     <h1>Vue Console (Migration Starter)</h1>
 
     <PipecatAppBase :connect-params="{ webrtcUrl: '/api/offer' }" init-devices-on-mount>
-      <template #default="{ error, handleConnect, handleDisconnect }">
+      <template #default="{ error }">
         <section class="panel">
-          <VoiceVisualizer participant-type="bot" />
-          <ControlBar>
-            <UserAudioControl />
-            <ConnectButton :on-connect="handleConnect" :on-disconnect="handleDisconnect" />
-          </ControlBar>
-          <ErrorCard v-if="error">{{ error }}</ErrorCard>
+          <ConsoleTemplate :error="error" />
           <DummyComponent text="Initial Vue surface is wired." />
         </section>
       </template>
@@ -20,13 +15,9 @@
 
 <script setup lang="ts">
 import {
-  ConnectButton,
-  ControlBar,
+  ConsoleTemplate,
   DummyComponent,
-  ErrorCard,
   PipecatAppBase,
-  UserAudioControl,
-  VoiceVisualizer,
 } from "@pipecat-ai/voice-ui-kit-vue";
 </script>
 

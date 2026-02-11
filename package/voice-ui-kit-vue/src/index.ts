@@ -8,8 +8,13 @@ export { default as UserAudioControl } from "./components/UserAudioControl.vue";
 export { default as VoiceVisualizer } from "./components/VoiceVisualizer.vue";
 export { default as ErrorCard } from "./components/ErrorCard.vue";
 export { default as DeviceSelect } from "./components/DeviceSelect.vue";
+export { default as DeviceSelectComponent } from "./components/DeviceSelectComponent.vue";
 export { default as UserVideoControl } from "./components/UserVideoControl.vue";
+export { default as UserVideoComponent } from "./components/UserVideoComponent.vue";
 export { default as ClientStatus } from "./components/ClientStatus.vue";
+export { default as ClientStatusComponent } from "./components/ClientStatusComponent.vue";
+
+export { default as ConsoleTemplate } from "./templates/ConsoleTemplate.vue";
 
 export {
   providePipecatApp,
@@ -30,6 +35,7 @@ export type {
   ClientStatusClassNames,
   ClientStatusComponentProps,
   ClientStatusProps,
+  DataListClassNames,
 } from "./types/clientStatus";
 
 export type {
@@ -46,7 +52,9 @@ export type {
 } from "./types/controlBar";
 
 export type {
+  DeviceSelectBaseProps,
   DeviceSelectClassNames,
+  DeviceSelectComponentProps,
   DeviceSelectProps,
 } from "./types/deviceSelect";
 
@@ -67,6 +75,8 @@ export type {
 } from "./types/userAudioControl";
 
 export type {
+  UserVideoComponentProps,
+  UserVideoControlBaseProps,
   UserVideoControlProps,
   UserVideoControlSize,
   UserVideoControlState,

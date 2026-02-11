@@ -39,8 +39,14 @@ Vue port of the core `@pipecat-ai/voice-ui-kit` primitives.
 - [x] Supports size/shadow/className props
 
 ### Second-wave primitives
-- [x] `DeviceSelect` (initial Vue parity)
-- [x] `UserVideoControl` (initial Vue parity)
-- [x] `ClientStatus` (initial Vue parity)
+- [x] `DeviceSelect` and `DeviceSelectComponent` props parity surface
+- [x] `UserVideoControl` and `UserVideoComponent` props parity surface
+- [x] `ClientStatus` and `ClientStatusComponent` props parity surface
 - [ ] Pixel-perfect styling parity for second-wave primitives
-- [ ] Full feature parity for second-wave primitives
+- [ ] Full UI behavior parity edge-cases from all React stories
+
+## Templates
+
+### ConsoleTemplate
+- [x] Initial Vue console template composition (`VoiceVisualizer`, `UserAudioControl`, `ConnectButton`, `ControlBar`, `ErrorCard`)
+- [ ] Full React console template feature parity

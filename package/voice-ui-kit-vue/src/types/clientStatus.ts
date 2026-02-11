@@ -1,10 +1,12 @@
 import type { TransportState } from "@pipecat-ai/client-js";
 
-export type ClientStatusClassNames = {
-  root?: string;
-  row?: string;
-  label?: string;
+export type DataListClassNames = {
+  container?: string;
+  key?: string;
   value?: string;
+};
+
+export type ClientStatusClassNames = DataListClassNames & {
   agentValue?: string;
   clientValue?: string;
 };
