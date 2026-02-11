@@ -41,7 +41,7 @@ _Optional - install recommended fonts for default theme_:
 npm i @fontsource-variable/geist @fontsource-variable/geist-mono
 ```
 
-# Launch and browse the Storybook:
+## Launch and browse Storybook
 
 Install and build workspace dependencies:
 
@@ -50,10 +50,16 @@ pnpm i
 pnpm build
 ```
 
-Launch the Storybook:
+Launch React Storybook:
 
 ```bash
 pnpm run dev
+```
+
+Launch Vue Storybook:
+
+```bash
+pnpm run dev:vue
 ```
 
 # Run example apps
