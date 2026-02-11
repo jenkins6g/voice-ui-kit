@@ -1,3 +1,5 @@
+import type { VoiceVisualizerProps } from "./voiceVisualizer";
+
 export type UserAudioControlVariant =
   | "primary"
   | "secondary"
@@ -38,9 +40,7 @@ export type UserAudioControlProps = {
   microphoneLabel?: string;
   speakerLabel?: string;
   noVisualizer?: boolean;
-  visualizerProps?: {
-    className?: string;
-  };
+  visualizerProps?: Partial<Omit<VoiceVisualizerProps, "participantType">>;
   noAudio?: boolean;
   noAudioText?: string | null;
   noIcon?: boolean;

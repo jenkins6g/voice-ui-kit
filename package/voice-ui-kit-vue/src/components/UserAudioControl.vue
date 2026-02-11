@@ -31,6 +31,21 @@
         <slot />
         <VoiceVisualizer
           v-if="!props.noVisualizer"
+          participant-type="local"
+          :background-color="props.visualizerProps?.backgroundColor"
+          :bar-color="props.visualizerProps?.barColor ?? 'currentColor'"
+          :no-peaks="props.visualizerProps?.noPeaks ?? true"
+          :peak-line-color="props.visualizerProps?.peakLineColor"
+          :peak-line-speed="props.visualizerProps?.peakLineSpeed"
+          :peak-line-thickness="props.visualizerProps?.peakLineThickness"
+          :peak-offset="props.visualizerProps?.peakOffset"
+          :peak-fade-speed="props.visualizerProps?.peakFadeSpeed"
+          :bar-count="props.visualizerProps?.barCount ?? 10"
+          :bar-gap="props.visualizerProps?.barGap ?? 2"
+          :bar-line-cap="props.visualizerProps?.barLineCap"
+          :bar-max-height="props.visualizerProps?.barMaxHeight ?? (props.size === 'lg' ? 24 : props.size === 'xl' ? 36 : 20)"
+          :bar-origin="props.visualizerProps?.barOrigin ?? 'center'"
+          :bar-width="props.visualizerProps?.barWidth ?? 3"
           :class="['vuk-inline-visualizer', props.visualizerProps?.className]"
         />
       </template>

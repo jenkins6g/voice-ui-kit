@@ -5,7 +5,7 @@
     <PipecatAppBase :connect-params="{ webrtcUrl: '/api/offer' }" init-devices-on-mount>
       <template #default="{ error, handleConnect, handleDisconnect }">
         <section class="panel">
-          <VoiceVisualizer />
+          <VoiceVisualizer participant-type="bot" />
           <ControlBar>
             <UserAudioControl />
             <ConnectButton :on-connect="handleConnect" :on-disconnect="handleDisconnect" />

@@ -38,4 +38,11 @@ export type {
   UserAudioControlVariant,
 } from "./types/userAudioControl";
 
+export type {
+  VoiceVisualizerBarLineCap,
+  VoiceVisualizerBarOrigin,
+  VoiceVisualizerParticipantType,
+  VoiceVisualizerProps,
+} from "./types/voiceVisualizer";
+
 export type { PipecatBaseChildProps, PipecatBaseProps } from "./types/pipecat";
