@@ -1,14 +1,42 @@
 <template>
-  <slot
-    :client="client"
-    :error="error"
-    :handleConnect="handleConnect"
-    :handleDisconnect="handleDisconnect"
-    :isConnected="isConnected"
-    :isConnecting="isConnecting"
-    :rawStartBotResponse="rawStartBotResponse"
-    :transformedStartBotResponse="transformedStartBotResponse"
-    :transportState="transportState"
+  <div v-if="noThemeProvider">
+    <slot
+      :client="client"
+      :error="error"
+      :handleConnect="handleConnect"
+      :handleDisconnect="handleDisconnect"
+      :isConnected="isConnected"
+      :isConnecting="isConnecting"
+      :rawStartBotResponse="rawStartBotResponse"
+      :transformedStartBotResponse="transformedStartBotResponse"
+      :transportState="transportState"
+    />
+  </div>
+
+  <ThemeProvider
+    v-else
+    :class-name="themeProps?.className"
+    :default-theme="themeProps?.defaultTheme"
+  >
+    <slot
+      :client="client"
+      :error="error"
+      :handleConnect="handleConnect"
+      :handleDisconnect="handleDisconnect"
+      :isConnected="isConnected"
+      :isConnecting="isConnecting"
+      :rawStartBotResponse="rawStartBotResponse"
+      :transformedStartBotResponse="transformedStartBotResponse"
+      :transportState="transportState"
+    />
+  </ThemeProvider>
+
+  <audio
+    v-if="!noAudioOutput"
+    ref="remoteAudioRef"
+    autoplay
+    playsinline
+    style="display: none"
   />
 </template>
 
@@ -17,10 +45,11 @@ import {
   PipecatClient,
   RTVIEvent,
   TransportStateEnum,
+  type Participant,
   type TransportConnectionParams,
   type TransportState,
 } from "@pipecat-ai/client-js";
-import { computed, onMounted, onUnmounted, ref, shallowRef } from "vue";
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from "vue";
 
 import {
   createTransport,
@@ -29,6 +58,7 @@ import {
   type TransportType,
 } from "../lib/transports";
 import { providePipecatApp } from "../composables/pipecatApp";
+import ThemeProvider from "./ThemeProvider.vue";
 import type { PipecatBaseProps } from "../types/pipecat";
 
 const props = withDefaults(defineProps<PipecatBaseProps>(), {
@@ -58,6 +88,9 @@ const transformedStartBotResponse = ref<TransportConnectionParams | unknown>(
   null,
 );
 const transportState = ref<TransportState>(TransportStateEnum.DISCONNECTED);
+
+const remoteAudioRef = ref<HTMLAudioElement | null>(null);
+const remoteAudioStream = new MediaStream();
 
 const isConnected = computed(
   () =>
@@ -173,8 +206,27 @@ const handleDisconnect = async () => {
   emit("disconnect");
 };
 
+const attachRemoteAudio = () => {
+  const el = remoteAudioRef.value;
+  if (!el) {
+    return;
+  }
+
+  el.srcObject = remoteAudioStream;
+  el.muted = !!props.noAudioOutput;
+};
+
+const clearRemoteAudioTracks = () => {
+  remoteAudioStream.getTracks().forEach((track) => {
+    remoteAudioStream.removeTrack(track);
+    track.stop();
+  });
+};
+
 let removeTransportStateListener: (() => void) | null = null;
 let removeDisconnectedListener: (() => void) | null = null;
+let removeTrackStartedListener: (() => void) | null = null;
+let removeTrackStoppedListener: (() => void) | null = null;
 
 const initClient = async () => {
   try {
@@ -204,16 +256,52 @@ const initClient = async () => {
 
     const onDisconnected = () => {
       transportState.value = TransportStateEnum.DISCONNECTED;
+      clearRemoteAudioTracks();
+    };
+
+    const onTrackStarted = (track: MediaStreamTrack, participant?: Participant) => {
+      if (props.noAudioOutput || track.kind !== "audio") {
+        return;
+      }
+
+      if (participant?.local) {
+        return;
+      }
+
+      if (!remoteAudioStream.getTracks().some((t) => t.id === track.id)) {
+        remoteAudioStream.addTrack(track);
+        attachRemoteAudio();
+      }
+    };
+
+    const onTrackStopped = (track: MediaStreamTrack) => {
+      if (track.kind !== "audio") {
+        return;
+      }
+
+      remoteAudioStream.getTracks().forEach((existingTrack) => {
+        if (existingTrack.id === track.id) {
+          remoteAudioStream.removeTrack(existingTrack);
+        }
+      });
     };
 
     pcClient.on(RTVIEvent.Disconnected, onDisconnected);
     pcClient.on(RTVIEvent.TransportStateChanged, onTransportStateChanged);
+    pcClient.on(RTVIEvent.TrackStarted, onTrackStarted);
+    pcClient.on(RTVIEvent.TrackStopped, onTrackStopped);
 
     removeTransportStateListener = () => {
       pcClient.off(RTVIEvent.TransportStateChanged, onTransportStateChanged);
     };
     removeDisconnectedListener = () => {
       pcClient.off(RTVIEvent.Disconnected, onDisconnected);
+    };
+    removeTrackStartedListener = () => {
+      pcClient.off(RTVIEvent.TrackStarted, onTrackStarted);
+    };
+    removeTrackStoppedListener = () => {
+      pcClient.off(RTVIEvent.TrackStopped, onTrackStopped);
     };
 
     emit("initialized", pcClient);
@@ -235,13 +323,27 @@ const initClient = async () => {
   }
 };
 
+watch(
+  () => props.noAudioOutput,
+  () => {
+    attachRemoteAudio();
+    if (props.noAudioOutput) {
+      clearRemoteAudioTracks();
+    }
+  },
+);
+
 onMounted(() => {
+  attachRemoteAudio();
   void initClient();
 });
 
 onUnmounted(async () => {
   removeTransportStateListener?.();
   removeDisconnectedListener?.();
+  removeTrackStartedListener?.();
+  removeTrackStoppedListener?.();
+  clearRemoteAudioTracks();
 
   if (client.value) {
     await client.value.disconnect();
@@ -251,6 +353,8 @@ onUnmounted(async () => {
   error.value = null;
   transportState.value = TransportStateEnum.DISCONNECTED;
 });
+
+const { noAudioOutput, noThemeProvider, themeProps } = props;
 
 providePipecatApp({
   client,

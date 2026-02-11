@@ -39,4 +39,16 @@ describe("ClientStatus", () => {
     expect(handlers.get(RTVIEvent.BotConnected)).toBeTypeOf("function");
     expect(handlers.get(RTVIEvent.BotReady)).toBeTypeOf("function");
   });
+
+  it("renders nothing when both client and agent states are disabled", async () => {
+    const wrapper = mount({
+      setup() {
+        providePipecatApp(createTestContext());
+        return () => h(ClientStatus, { noAgentState: true, noClientState: true });
+      },
+    });
+
+    await nextTick();
+    expect(wrapper.html()).toBe("<!--v-if-->");
+  });
 });

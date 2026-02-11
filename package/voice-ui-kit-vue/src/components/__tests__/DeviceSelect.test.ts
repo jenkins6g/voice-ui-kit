@@ -33,4 +33,17 @@ describe("DeviceSelect", () => {
     await select.setValue("mic-1");
     expect(updateMic).toHaveBeenCalledWith("mic-1");
   });
+
+  it("supports disabled selectProps", () => {
+    const wrapper = mount(DeviceSelectComponent, {
+      props: {
+        availableDevices: [],
+        selectProps: {
+          disabled: true,
+        },
+      },
+    });
+
+    expect(wrapper.find("select").attributes("disabled")).toBeDefined();
+  });
 });

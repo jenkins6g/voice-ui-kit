@@ -2,51 +2,42 @@
 
 Vue port of the core `@pipecat-ai/voice-ui-kit` primitives.
 
-## Parity Checklist
+## Usage
 
-### PipecatAppBase
-- [x] Initializes `PipecatClient` with selected transport
-- [x] Supports `connectParams` and `startBotParams`
-- [x] Supports `startBotResponseTransformer`
-- [x] Supports `connectOnMount` and `initDevicesOnMount`
-- [x] Exposes slot props: `client`, `handleConnect`, `handleDisconnect`, `error`, `rawStartBotResponse`, `transformedStartBotResponse`
-- [ ] Theme wrapping parity (`noThemeProvider`, `themeProps`) behavior parity
-- [ ] Bot audio output parity (`noAudioOutput`) behavior parity
+```vue
+<template>
+  <PipecatAppBase :connect-params="{ webrtcUrl: '/api/offer' }" transport-type="smallwebrtc">
+    <template #default="{ error, handleConnect, handleDisconnect }">
+      <ConsoleTemplate :error="error" />
+      <ConnectButton :on-connect="handleConnect" :on-disconnect="handleDisconnect" />
+    </template>
+  </PipecatAppBase>
+</template>
+```
 
-### ConnectButton
-- [x] Transport-state aware labels
-- [x] State-based disabled/loading behavior
-- [x] Supports `onClick`, `onConnect`, `onDisconnect`
-- [x] Supports `stateContent` overrides
+## Parity Status
 
-### UserAudioControl
-- [x] Mic toggle via client state
-- [x] Loading behavior from transport state
-- [x] Device picker for mics/speakers
-- [x] Visualizer integration and prop passthrough
+| Area | Status | Notes |
+| --- | --- | --- |
+| `PipecatAppBase` | Partial | Client lifecycle parity done; theme/audio output support implemented; conversation/theme internals still differ from React wrappers. |
+| `ConnectButton` | Near parity | State labels/disabled/loading/callback flow aligned. |
+| `UserAudioControl` | Partial | Core behavior aligned; visual/stories edge cases still in progress. |
+| `VoiceVisualizer` | Partial | Event-driven canvas parity scaffold done; exact spectrum algorithm differs from React implementation. |
+| `ControlBar` + `ErrorCard` | Near parity | API shape aligned; styling is approximate. |
+| `DeviceSelect` | Partial | `DeviceSelectComponent` + connected wrapper exported; advanced select UI differences remain. |
+| `UserVideoControl` | Partial | Headless + connected variants exported; advanced preview/dropdown behavior still simplified. |
+| `ClientStatus` | Partial | Client/agent status and event wiring present; exact UI micro-states differ. |
+| `ConsoleTemplate` | Initial parity | Core composition scaffold is present; full React console feature parity is pending. |
 
-### VoiceVisualizer
-- [x] Canvas renderer with configurable bars/colors/peaks
-- [x] Supports `participantType` (`local`, `bot`, `remote`)
-- [x] Listens to Pipecat audio level events
+## Known Gaps
 
-### ControlBar
-- [x] Supports size/shadow/gradient-border/no-animate props
-- [x] `ControlBarDivider` primitive exported
+- Full React template parity for mobile tabs, resizable layouts, events panel, and metrics panel.
+- Theme behavior parity beyond base `data-theme` wrapper.
+- Pixel-perfect visual parity across all primitives.
+- Advanced media panel behavior and full story-level edge-case parity.
 
-### ErrorCard
-- [x] Supports `title`, `noHeader`, `classNames`, `icon`
-- [x] Supports size/shadow/className props
+## Validation Commands
 
-### Second-wave primitives
-- [x] `DeviceSelect` and `DeviceSelectComponent` props parity surface
-- [x] `UserVideoControl` and `UserVideoComponent` props parity surface
-- [x] `ClientStatus` and `ClientStatusComponent` props parity surface
-- [ ] Pixel-perfect styling parity for second-wave primitives
-- [ ] Full UI behavior parity edge-cases from all React stories
-
-## Templates
-
-### ConsoleTemplate
-- [x] Initial Vue console template composition (`VoiceVisualizer`, `UserAudioControl`, `ConnectButton`, `ControlBar`, `ErrorCard`)
-- [ ] Full React console template feature parity
+- `pnpm --filter @pipecat-ai/voice-ui-kit-vue test`
+- `pnpm --filter @pipecat-ai/voice-ui-kit-vue build`
+- `pnpm -r build`

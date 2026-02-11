@@ -1,6 +1,7 @@
 export { default as DummyComponent } from "./components/DummyComponent.vue";
 
 export { default as PipecatAppBase } from "./components/PipecatAppBase.vue";
+export { default as ThemeProvider } from "./components/ThemeProvider.vue";
 export { default as ConnectButton } from "./components/ConnectButton.vue";
 export { default as ControlBar } from "./components/ControlBar.vue";
 export { default as ControlBarDivider } from "./components/ControlBarDivider.vue";
@@ -37,6 +38,8 @@ export type {
   ClientStatusProps,
   DataListClassNames,
 } from "./types/clientStatus";
+
+export type { ConsoleTemplateProps } from "./types/consoleTemplate";
 
 export type {
   ConnectButtonProps,
@@ -83,11 +86,11 @@ export type {
   UserVideoControlVariant,
 } from "./types/userVideoControl";
 
+export type { PipecatThemeProps, PipecatBaseChildProps, PipecatBaseProps } from "./types/pipecat";
+
 export type {
   VoiceVisualizerBarLineCap,
   VoiceVisualizerBarOrigin,
   VoiceVisualizerParticipantType,
   VoiceVisualizerProps,
 } from "./types/voiceVisualizer";
-
-export type { PipecatBaseChildProps, PipecatBaseProps } from "./types/pipecat";

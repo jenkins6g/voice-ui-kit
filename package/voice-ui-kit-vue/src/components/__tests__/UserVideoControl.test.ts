@@ -48,4 +48,30 @@ describe("UserVideoControl", () => {
     expect(client.isCamEnabled).toBe(true);
     expect(wrapper.text()).toContain("Camera On");
   });
+
+  it("disables controls while loading", async () => {
+    const client = {
+      isCamEnabled: false,
+      selectedCam: {},
+      getAllCams: async () => [],
+      updateCam: () => {},
+      enableCam: () => {},
+    };
+
+    const wrapper = mount({
+      setup() {
+        providePipecatApp(
+          createTestContext({
+            client: client as never,
+            transportState: TransportStateEnum.DISCONNECTED,
+          }),
+        );
+
+        return () => h(UserVideoControl, { noVideo: true, noDevicePicker: true });
+      },
+    });
+
+    await nextTick();
+    expect(wrapper.find(".vuk-video-button").attributes("disabled")).toBeDefined();
+  });
 });
